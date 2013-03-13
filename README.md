@@ -12,7 +12,17 @@ Usage is very straightforward:
 bin/HlslShaderToy.exe ../media/HelloWorld.hlsl
 ```
 
-The following sentences are automatilly added to the shader you provide    
+Take HelloWorld.hlsl as an example, which does nothing except showing a image(iChannel[0]) on screen.   
+```
+float4 main( PS_Input input) : SV_Target
+{
+    return iChannel[0].Sample( samLinear, input.tex );
+}
+```
+
+If you have previous experience with Hlsl coding, then you must be wondering WTF is PS_Input and iChannel[0]!!!   
+
+Take it easy, the secrect is that following sentences are automatilly added to the shader you provide    
 ```
 Texture2D iChannel[4] : register( t0 );
 
@@ -32,12 +42,4 @@ struct PS_Input
     float4 pos : SV_POSITION;
     float2 tex : TEXCOORD0;
 };
-```
-
-Take HelloWorld.hlsl as an example, which does nothing except showing a image(iChannel[0]) on screen.   
-```
-float4 main( PS_Input input) : SV_Target
-{
-    return iChannel[0].Sample( samLinear, input.tex );
-}
 ```
