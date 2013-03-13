@@ -13,7 +13,7 @@ bin/HlslShaderToy.exe ../media/HelloWorld.hlsl
 ```
 
 Take HelloWorld.hlsl as an example, which does nothing except showing a image(iChannel[0]) on screen.   
-```
+```glsl
 float4 main( PS_Input input) : SV_Target
 {
     return iChannel[0].Sample( samLinear, input.tex );
@@ -23,7 +23,7 @@ float4 main( PS_Input input) : SV_Target
 If you have previous experience with Hlsl coding, then you must be wondering WTF is PS_Input and iChannel[0]!!!   
 
 Take it easy, the secrect is that following sentences are automatilly added to the shader you provide    
-```
+```glsl
 Texture2D iChannel[4] : register( t0 );
 
 SamplerState samLinear : register( s0 );
