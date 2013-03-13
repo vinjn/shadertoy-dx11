@@ -5,9 +5,10 @@ HlslShaderToy is inspired by www.shadertoy.com
 
 ShaderToy is such an amazing website, I enjoy learning from the fabulous shaders.   
 In daily work, I care more about Hlsl, which is the shader language for Microsoft Direct3D API.   
-So it would be nice for me to have a Hlsl version of ShaderToy, it a standalone application and won't run in a browser.   
+So it would be nice for me to have a standalone Hlsl version of ShaderToy.   
+Certainly it won't run in a browser since there is no WebD3D.   
 
-Usage is very straightforward:
+The usage is quite straightforward:
 ```
 bin/HlslShaderToy.exe ../media/HelloWorld.hlsl
 ```
