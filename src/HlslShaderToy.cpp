@@ -8,6 +8,8 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <iostream>
+#include <regex>
 #include <algorithm>
 #include "V.h"
 
@@ -16,33 +18,31 @@ HRESULT hr = S_OK;
 const char kAppName[] = "HlslShaderToy";
 const int kAppWidth = 800;
 const int kAppHeight = 600;
-const int kSrvCount = 4;
+
+namespace std
+{
+    using namespace tr1;
+}
 
 const std::string kVertexShaderCode =
-"struct VS_Output\n"
-"{  \n"
-"    float4 pos : SV_POSITION;              \n"
-"    float2 tex : TEXCOORD0;\n"
-"};\n"
 
-"VS_Output VS(uint id : SV_VertexID)\n"
+"float4 VS(uint id : SV_VertexID) : SV_POSITION\n"
 "{\n"
-"    VS_Output output;\n"
-"    output.tex = float2((id << 1) & 2, id & 2);\n"
-"    output.pos = float4(output.tex * float2(2,-2) + float2(-1,1), 0, 1);\n"
-"    return output;\n"
+"    float2 tex = float2((id << 1) & 2, id & 2);\n"
+"    return float4(tex * float2(2,-2) + float2(-1,1), 0, 1);\n"
 "}\n"
 ;
 
-const std::string kPixelShaderCommonCode = 
+const std::string kPixelShaderHeader = 
 "Texture2D iChannel[4] : register( t0 );\n"
 
 "SamplerState samLinear : register( s0 );\n"
 
 "cbuffer cbNeverChanges : register( b0 )\n"
 "{\n"
-"    float3      iResolution;     // viewport resolution (in pixels)\n"
+"    float2      iResolution;     // viewport resolution (in pixels)\n"
 "    float       iGlobalTime;     // shader playback time (in seconds)\n"
+"    float       pad;             // padding\n"
 "    float       iChannelTime[4]; // channel playback time (in seconds)\n"
 "    float4      iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
 "    float4      iDate;           // (year, month, day, time in seconds)\n"
@@ -71,8 +71,9 @@ const std::string kPixelShaderCommonCode =
 
 struct CBOneFrame
 {
-    XMFLOAT3    iResolution;     // viewport resolution (in pixels)
+    XMFLOAT2    iResolution;     // viewport resolution (in pixels)
     float       iGlobalTime;     // shader playback time (in seconds)
+    float       pad;             // padding
     float       iChannelTime[4]; // channel playback time (in seconds)
     XMFLOAT4    iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
     XMFLOAT4    iDate;           // (year, month, day, time in seconds)
@@ -92,9 +93,10 @@ CComPtr<ID3D11RenderTargetView>         g_pRenderTargetView;
 CComPtr<ID3D11VertexShader>             g_pVertexShader;
 CComPtr<ID3D11PixelShader>              g_pPixelShader;
 CComPtr<ID3D11Buffer>                   g_pCBOneFrame;
-CComPtr<ID3D11ShaderResourceView>       g_pTextureRV;
+std::vector<ID3D11ShaderResourceView*>       g_pTextureRVs;
 CComPtr<ID3D11SamplerState>             g_pSamplerLinear;
 
+std::vector<std::string>                g_texturePaths;
 std::string                             g_pixelShaderFileName;
 
 //--------------------------------------------------------------------------------------
@@ -191,29 +193,45 @@ HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow )
 HRESULT CreatePixelShaderFromFile(LPCSTR filename)
 {
     // open
-    const size_t nCommonShaderNewLines = std::count(kPixelShaderCommonCode.begin(), kPixelShaderCommonCode.end(), '\n');
+    const size_t nCommonShaderNewLines = std::count(kPixelShaderHeader.begin(), kPixelShaderHeader.end(), '\n');
     std::ifstream ifs(filename, std::ifstream::binary);
     if (!ifs)
     {
         return E_FAIL;
     }
 
-    // get file content
-    ifs.seekg (0, ifs.end);
-    size_t length = ifs.tellg();
-    ifs.seekg (0, ifs.beg);
-    char* fileContent = new char[length+1];
-    ifs.read(&fileContent[0], length);
-    fileContent[length] = '\0';
+    g_texturePaths.clear();
+    std::regex re("^texture\\s*=\\s*(.*)");
+
+    std::stringstream pixelShaderText;
+    std::string oneline;
+    while (std::getline(ifs, oneline))
+    {
+        std::string smaller = oneline.substr(0, oneline.length() - 1);
+        std::smatch sm;
+        std::regex_match (smaller, sm, re);
+        if (sm.empty())
+        {
+            // normal shader text
+            pixelShaderText << oneline;
+        }
+        else
+        {
+            std::string texturePath = sm.str(1);
+            g_texturePaths.push_back(texturePath);
+            OutputDebugStringA(texturePath.c_str());
+            OutputDebugStringA("\n");
+        }
+    }
 
     // add together
-    std::string psText = kPixelShaderCommonCode + fileContent;
-
-    delete[] fileContent;
+    std::string psText = kPixelShaderHeader + pixelShaderText.str();
 
     ID3DBlob* pPSBlob = NULL;
     std::string errorMsg;
     hr = CompileShaderFromMemory( psText.c_str(), "main", "ps_4_0", &pPSBlob, &errorMsg );
+
+    // hack shader compiling error message
     if (FAILED(hr))
     {
         size_t lineStrSize = errorMsg.find(',') - 1;
@@ -232,6 +250,17 @@ HRESULT CreatePixelShaderFromFile(LPCSTR filename)
     g_pPixelShader = NULL;
     V_RETURN(g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader ));
 
+    // shader reflection
+    {
+        ID3D11ShaderReflection* pReflector = NULL; 
+        V_RETURN( D3DReflect( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), 
+            IID_ID3D11ShaderReflection, (void**) &pReflector) );
+
+        D3D11_SHADER_DESC desc;
+        V_RETURN(pReflector->GetDesc(&desc));
+
+        UINT nCBs = desc.ConstantBuffers;
+    }
     return hr;
 }
 
@@ -247,7 +276,6 @@ HRESULT InitDevice()
 
     g_cbOneFrame.iResolution.x = (float)width;
     g_cbOneFrame.iResolution.y = (float)height;
-    g_cbOneFrame.iResolution.z = 1.0f;
 
     UINT createDeviceFlags = 0;
 #ifdef _DEBUG
@@ -325,7 +353,13 @@ HRESULT InitDevice()
     }
 
     // Load the Texture
-    V_RETURN(D3DX11CreateShaderResourceViewFromFile( g_pd3dDevice, "../media/photo_4.jpg", NULL, NULL, &g_pTextureRV, NULL ));
+    // TODO: release
+    g_pTextureRVs.clear();
+    g_pTextureRVs.resize(g_texturePaths.size());
+    for (size_t i=0;i<g_texturePaths.size();i++)
+    {
+        V_RETURN(D3DX11CreateShaderResourceViewFromFile( g_pd3dDevice, g_texturePaths[i].c_str(), NULL, NULL, &g_pTextureRVs[i], NULL ));
+    }
 
     // Create the sample state
     CD3D11_SAMPLER_DESC sampDesc(D3D11_DEFAULT);
@@ -366,6 +400,13 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         }break;
     case WM_KEYUP:
         {
+            switch (wParam)
+            {
+            case VK_ESCAPE:
+                {
+                    ::PostQuitMessage(0);
+                }break;
+            }
 
         }break;
     case WM_MOUSEMOVE:
@@ -406,8 +447,7 @@ void Render()
     g_pImmediateContext->PSSetShader( g_pPixelShader, NULL, 0 );
     ID3D11Buffer* pCBuffers[] = {g_pCBOneFrame};
     g_pImmediateContext->PSSetConstantBuffers( 0, 1, pCBuffers );
-    ID3D11ShaderResourceView* pSRVs[kSrvCount] = {g_pTextureRV};
-    g_pImmediateContext->PSSetShaderResources( 0, kSrvCount, pSRVs );
+    g_pImmediateContext->PSSetShaderResources( 0, std::min<int>(4, g_pTextureRVs.size()), &g_pTextureRVs[0] );
     ID3D11SamplerState* pSamplers[] = {g_pSamplerLinear};
     g_pImmediateContext->PSSetSamplers( 0, 1, pSamplers );
 
