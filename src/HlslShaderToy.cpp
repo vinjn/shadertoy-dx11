@@ -7,6 +7,8 @@
 #include <atlbase.h>
 #include <string>
 #include <fstream>
+#include <sstream>
+#include <algorithm>
 #include "V.h"
 
 HRESULT hr = S_OK;
@@ -51,6 +53,16 @@ const std::string kPixelShaderCommonCode =
 "    float4 pos : SV_POSITION;\n"
 "    float2 tex : TEXCOORD0;\n"
 "};\n"
+
+"typedef float2 vec2;\n"
+"typedef float3 vec3;\n"
+"typedef float4 vec4;\n"
+"typedef int2 ivec2;\n"
+"typedef int3 ivec3;\n"
+"typedef int4 ivec4;\n"
+"typedef float2x2 mat2;\n"
+"typedef float3x3 mat3;\n"
+"typedef float4x4 mat4;\n"
 ;
 
 //--------------------------------------------------------------------------------------
@@ -179,6 +191,7 @@ HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow )
 HRESULT CreatePixelShaderFromFile(LPCSTR filename)
 {
     // open
+    const size_t nCommonShaderNewLines = std::count(kPixelShaderCommonCode.begin(), kPixelShaderCommonCode.end(), '\n');
     std::ifstream ifs(filename, std::ifstream::binary);
     if (!ifs)
     {
@@ -199,7 +212,22 @@ HRESULT CreatePixelShaderFromFile(LPCSTR filename)
     delete[] fileContent;
 
     ID3DBlob* pPSBlob = NULL;
-    V_RETURN(CompileShaderFromMemory( psText.c_str(), "main", "ps_4_0", &pPSBlob ));
+    std::string errorMsg;
+    hr = CompileShaderFromMemory( psText.c_str(), "main", "ps_4_0", &pPSBlob, &errorMsg );
+    if (FAILED(hr))
+    {
+        size_t lineStrSize = errorMsg.find(',') - 1;
+        std::string lineStr = errorMsg.substr(1, lineStrSize);
+        int lineNo; 
+        std::istringstream( lineStr ) >> lineNo;
+        lineNo -= nCommonShaderNewLines;
+        std::ostringstream ss;
+        ss << lineNo;
+        errorMsg.replace(1, lineStrSize, ss.str());
+        OutputDebugStringA(errorMsg.c_str());
+        
+        return E_FAIL;
+    }
 
     g_pPixelShader = NULL;
     V_RETURN(g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader ));

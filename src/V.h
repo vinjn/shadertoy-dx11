@@ -64,7 +64,7 @@ inline HRESULT CompileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LP
 //--------------------------------------------------------------------------------------
 // Helper for compiling shaders with D3DX11
 //--------------------------------------------------------------------------------------
-inline HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut )
+inline HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut, std::string* pErrorStr = NULL)
 {
     HRESULT hr = S_OK;
 
@@ -87,7 +87,16 @@ inline HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCS
     if( FAILED(hr) )
     {
         if( pErrorBlob != NULL )
-            OutputDebugStringA( (char*)pErrorBlob->GetBufferPointer() );
+        {
+            if (pErrorStr == NULL)
+            {
+                OutputDebugStringA((char*)pErrorBlob->GetBufferPointer());
+            }
+            else
+            {
+                *pErrorStr = (char*)pErrorBlob->GetBufferPointer();
+            }
+        }
         if( pErrorBlob ) pErrorBlob->Release();
         return hr;
     }
