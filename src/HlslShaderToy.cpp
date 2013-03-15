@@ -17,18 +17,11 @@ const int kAppHeight = 600;
 const int kSrvCount = 4;
 
 const std::string kVertexShaderCode =
-"struct VS_Output\n"
-"{  \n"
-"    float4 pos : SV_POSITION;              \n"
-"    float2 tex : TEXCOORD0;\n"
-"};\n"
 
-"VS_Output VS(uint id : SV_VertexID)\n"
+"float4 VS(uint id : SV_VertexID) : SV_POSITION\n"
 "{\n"
-"    VS_Output output;\n"
-"    output.tex = float2((id << 1) & 2, id & 2);\n"
-"    output.pos = float4(output.tex * float2(2,-2) + float2(-1,1), 0, 1);\n"
-"    return output;\n"
+"    float2 tex = float2((id << 1) & 2, id & 2);\n"
+"    return float4(tex * float2(2,-2) + float2(-1,1), 0, 1);\n"
 "}\n"
 ;
 
@@ -39,17 +32,12 @@ const std::string kPixelShaderCommonCode =
 
 "cbuffer cbNeverChanges : register( b0 )\n"
 "{\n"
-"    float3      iResolution;     // viewport resolution (in pixels)\n"
+"    float2      iResolution;     // viewport resolution (in pixels)\n"
 "    float       iGlobalTime;     // shader playback time (in seconds)\n"
+"    float       pad;             // padding\n"
 "    float       iChannelTime[4]; // channel playback time (in seconds)\n"
 "    float4      iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
 "    float4      iDate;           // (year, month, day, time in seconds)\n"
-"};\n"
-
-"struct PS_Input\n"
-"{\n"
-"    float4 pos : SV_POSITION;\n"
-"    float2 tex : TEXCOORD0;\n"
 "};\n"
 ;
 
@@ -59,8 +47,9 @@ const std::string kPixelShaderCommonCode =
 
 struct CBOneFrame
 {
-    XMFLOAT3    iResolution;     // viewport resolution (in pixels)
+    XMFLOAT2    iResolution;     // viewport resolution (in pixels)
     float       iGlobalTime;     // shader playback time (in seconds)
+    float       pad;             // padding
     float       iChannelTime[4]; // channel playback time (in seconds)
     XMFLOAT4    iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
     XMFLOAT4    iDate;           // (year, month, day, time in seconds)
@@ -219,7 +208,6 @@ HRESULT InitDevice()
 
     g_cbOneFrame.iResolution.x = (float)width;
     g_cbOneFrame.iResolution.y = (float)height;
-    g_cbOneFrame.iResolution.z = 1.0f;
 
     UINT createDeviceFlags = 0;
 #ifdef _DEBUG
