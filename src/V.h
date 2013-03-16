@@ -104,3 +104,4 @@ inline HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCS
 
     return S_OK;
 }
+

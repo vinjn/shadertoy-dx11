@@ -1,5 +1,4 @@
-// e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
- //e:\__svn_pool\\HlslShaderToy\\media\\photo_4.jpg
+// ..\\media\\ducky.png
 
 float mod289(float x)
 {
