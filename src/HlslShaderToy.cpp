@@ -257,6 +257,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
         "    float4     iDate;           // (year, month, day, time in seconds)\n"
         "};\n"
         "\n"
+#ifdef GLSL_SYNTAX_ENABLED
         "// to understand GLSL types"
         "typedef float2 vec2;\n"
         "typedef float3 vec3;\n"
@@ -268,6 +269,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
         "typedef float3x3 mat3;\n"
         "typedef float4x4 mat4;\n"
         "\n"
+#endif
         ;
 
     std::string pixelShaderHeader = pixelShaderHeaderSS.str();
