@@ -15,32 +15,31 @@ bin/HlslShaderToy.exe ../media/HelloWorld.hlsl
 
 Take HelloWorld.hlsl as an example, which does nothing except showing a image(iChannel[0]) on screen.   
 ```glsl
+// ../media/photo_4.jpg
+
 float4 main( PS_Input input) : SV_Target
 {
-    return iChannel[0].Sample( samLinear, input.tex );
+    return iChannel[0].Sample( smooth, input.tex );
 }
 ```
 
-If you have previous experience with Hlsl coding, then you must be wondering WTF is PS_Input and iChannel[0]!!!   
+If you have previous experience with Hlsl coding, then you must be wondering WTF is smooth and iChannel[0]!!!   
 
 Take it easy, the secrect is that following sentences are automatilly added to the shader you provide    
 ```glsl
 Texture2D iChannel[4] : register( t0 );
 
-SamplerState samLinear : register( s0 );
+SamplerState smooth : register( s0 );
+SamplerState blocky : register( s1 );
 
 cbuffer cbNeverChanges : register( b0 )
 {
-    float3      iResolution;     // viewport resolution (in pixels)
-    float       iGlobalTime;     // shader playback time (in seconds)
-    float       iChannelTime[4]; // channel playback time (in seconds)
-    float4      iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
-    float4      iDate;           // (year, month, day, time in seconds)
+    float2     iResolution;     // viewport resolution (in pixels)
+    float      iGlobalTime;     // shader playback time (in seconds)
+    float      pad;             // padding
+    float4     iChannelTime;   // channel playback time (in seconds)
+    float4     iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
+    float4     iDate;           // (year, month, day, time in seconds)
 };
 
-struct PS_Input
-{
-    float4 pos : SV_POSITION;
-    float2 tex : TEXCOORD0;
-};
 ```
