@@ -201,26 +201,29 @@ HRESULT CreatePixelShaderFromFile(LPCSTR filename)
     }
 
     g_texturePaths.clear();
-    std::regex re("^texture\\s*=\\s*(.*)");
+    std::regex re(".*//\\s*(.*)");
+    // e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
 
     std::stringstream pixelShaderText;
     std::string oneline;
     while (std::getline(ifs, oneline))
     {
+        pixelShaderText << oneline;
+
         std::string smaller = oneline.substr(0, oneline.length() - 1);
         std::smatch sm;
         std::regex_match (smaller, sm, re);
-        if (sm.empty())
+        if (!sm.empty())
         {
-            // normal shader text
-            pixelShaderText << oneline;
-        }
-        else
-        {
-            std::string texturePath = sm.str(1);
-            g_texturePaths.push_back(texturePath);
-            OutputDebugStringA(texturePath.c_str());
-            OutputDebugStringA("\n");
+            std::string possiblePath = sm.str(1);
+            D3DX11_IMAGE_INFO imageInfo;
+
+            if (SUCCEEDED(D3DX11GetImageInfoFromFile(possiblePath.c_str(), NULL, &imageInfo, NULL)))
+            {
+                g_texturePaths.push_back(possiblePath);
+                OutputDebugStringA(possiblePath.c_str());
+                OutputDebugStringA("\n");
+            }
         }
     }
 

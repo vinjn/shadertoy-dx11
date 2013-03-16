@@ -1,5 +1,5 @@
-texture = e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
-texture = e:\__svn_pool\\HlslShaderToy\\media\\photo_4.jpg
+// e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
+ //e:\__svn_pool\\HlslShaderToy\\media\\photo_4.jpg
 
 float mod289(float x)
 {
