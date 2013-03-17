@@ -50,7 +50,7 @@ float  mod(float x, float y)
 float4 main( float4 pos : SV_POSITION ) : SV_Target
 {
     float2 position = ( pos.xy / resolution.xy );
-    float2 pixel = 1./resolution;
+    float2 pixel = 1./resolution.xy;
     float2 mousepx = dot(mouse.xy, pixel);
 
     float3 space = float3(0.02, 0.04, 0.1);
@@ -66,12 +66,12 @@ float4 main( float4 pos : SV_POSITION ) : SV_Target
         // empty; do nothing
     } else if (position.y < 0.1) {
         // Player ship
-        if (abs(position.x - mouse.x) < (0.1 - position.y) * 0.25) {
+        if (abs(position.x - mousepx.x) < (0.1 - position.y) * 0.25) {
             me.rgb = float3(0.5, 0.7, 0.6);
         }
     } else if (position.y < 0.105) {
         // Shot generator
-        if ((abs(position.x - mouse.x) <= pixel.x) && (mod(time * 2.0, 1.0) < 0.1)) {
+        if ((abs(position.x - mousepx.x) <= pixel.x) && (mod(time * 2.0, 1.0) < 0.1)) {
             me.rgb = shot;
         }
     } else {
