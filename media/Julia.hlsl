@@ -72,7 +72,7 @@ float4 main( float4 pos : SV_POSITION) : SV_Target
 	vcol *= float3(1.0,0.98,0.95);
 	
 	float2 uv = pos.xy/resolution.xy;
-	vcol *= 0.7 + 0.3*pow(16.0*uv.x*uv.y*(1.0-uv.x)*(1.0-uv.y),0.25);
+	vcol *= 0.7 + 0.3*pow(abs(16.0*uv.x*uv.y*(1.0-uv.x)*(1.0-uv.y)), 0.25);
 	
 	return float4( vcol, 1.0 );
 }
