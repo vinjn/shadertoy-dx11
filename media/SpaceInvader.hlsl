@@ -42,16 +42,11 @@ bool alien(float x, float y) {
     return false;
 }
 
-float  mod(float x, float y)
-{
-    return x - y * trunc(x/y);
-}
-
 float4 main( float4 pos : SV_POSITION ) : SV_Target
 {
     float2 position = ( pos.xy / resolution.xy );
     float2 pixel = 1./resolution.xy;
-    float2 mousepx = dot(mouse.xy, pixel);
+    float2 mousepx = mouse.xy * pixel;
 
     float3 space = float3(0.02, 0.04, 0.1);
     float3 shot = float3(1.0, 0.0, 0.3);
@@ -62,31 +57,32 @@ float4 main( float4 pos : SV_POSITION ) : SV_Target
     float4 me = float4(space.r, space.g, space.b, 1.0);
 
     // Y < 0.1: ship
-    if (position.y < 0.02) {
+    if (position.y >  0.98 ) {
         // empty; do nothing
-    } else if (position.y < 0.1) {
+    } else if (position.y >  0.9 ) {
         // Player ship
-        if (abs(position.x - mousepx.x) < (0.1 - position.y) * 0.25) {
-            me.rgb = float3(0.5, 0.7, 0.6);
+        if (abs(position.x - mousepx.x) < (position.y - 0.9 ) * 0.25) {
+            me.rgb = float3(0.7, 0.0, 0.0);
         }
-    } else if (position.y < 0.105) {
+    } else if (position.y > 0.895) {
         // Shot generator
-        if ((abs(position.x - mousepx.x) <= pixel.x) && (mod(time * 2.0, 1.0) < 0.1)) {
+        if ((abs(position.x - mousepx.x) <= pixel.x) && (fmod(time * 2.0, 1.0) < 0.1)) {
             me.rgb = shot;
         }
     } else {
         // Playing field
-        float shoty = max(position.y - 0.015, 0.1025);
+        float shoty = min(position.y + 0.015, 0.8975);
         float4 below = backbuffer.Sample(smooth, float2(position.x, shoty));
         float offset = 0.0;
         float offsetpx = 0.0;
 
-        if (mod(time * 1.0, 1.0) > 0.95) {
+        if (fmod(time * 1.0, 1.0) > 0.95) {
             // Enemy marching
             offset = 0.01 * ((old.a > 0.5) ? 1.0 : -1.0);
             offsetpx = 0.01 / pixel.x;
             old.rgb = backbuffer.Sample(smooth, position + float2(offset, 0.0)).rgb;
 
+            // a is moving speed
             if (old.a < 0.4) {
                 me.a = old.a + 0.015;
             } else if (old.a > 0.6) {
@@ -101,16 +97,16 @@ float4 main( float4 pos : SV_POSITION ) : SV_Target
 
         if (IsUninitialized(old.rgb)) {
             // draw enemy ships for first time
-            float enemyrow = (1.0 - position.y - 0.05) * 12.0;
-            float enemyrowmod = mod(enemyrow, 1.0);
+            float enemyrow = (position.y - 0.05) * 12.0;
+            float enemyrowfmod = fmod(enemyrow, 1.0);
             float enemycol = position.x * 15.0 - 0.2;
-            float enemycolmod = mod(enemycol, 1.0);
-            bool oddrow = (floor(mod(enemyrow, 2.0)) == 1.0);
+            float enemycolfmod = fmod(enemycol, 1.0);
+            bool oddrow = (floor(fmod(enemyrow, 2.0)) == 1.0);
 
             if ((enemyrow >= 0.0) && (enemyrow < 4.0)) {
                 me.a = (oddrow) ? 1.0 : 0.0;
                 if ((enemycol >= (oddrow ? 4.0 : 0.0)) && (enemycol < (oddrow ? 15.0 : 11.0))) {
-                    me.rgb = alien(enemycolmod * 25.0, enemyrowmod * 25.0) ? enemy : space;
+                    me.rgb = alien(enemycolfmod * 25.0, enemyrowfmod * 25.0) ? enemy : space;
                 }
             }
         } else if (IsShot(below.rgb)) {
@@ -133,12 +129,13 @@ float4 main( float4 pos : SV_POSITION ) : SV_Target
         } else {
             // Fade debris to background color
             if (!IsShot(old.rgb) && !IsEnemy(old.rgb)) {
-                float fade = mod(frac(sin(dot(position + time * 0.001, float2(14.9898,78.233))) * 43758.5453), 1.0);
+                float fade = fmod(frac(sin(dot(position + time * 0.001, float2(14.9898,78.233))) * 43758.5453), 1.0);
                 fade = pow(fade, 6.0) * 0.4;
                 me.rgb = old.rgb * (1.0 - fade) + space * fade;
                 if (length(me.rgb - space) < 0.05) {me.rgb = space;}
             }
         }
     }
+    
     return me;
 }

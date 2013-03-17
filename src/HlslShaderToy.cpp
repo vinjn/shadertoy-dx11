@@ -16,9 +16,11 @@
 HRESULT hr = S_OK;
 
 const char kAppName[] = "HlslShaderToy";
+const char kErrorBoxName[] = "Shader Compiling Error";
 const int kAppWidth = 800;
 const int kAppHeight = 600;
-const int kFileChangeDetectionMS = 3000;
+const int kFileChangeDetectionMS = 1000;
+const float kBlackColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // red, green, blue, alpha
 
 using std::vector;
 using std::string;
@@ -79,9 +81,12 @@ std::vector<ID3D11ShaderResourceView*>  g_pTextureSRVs;      // Texture2D textur
 CComPtr<ID3D11SamplerState>             g_pSamplerSmooth;
 CComPtr<ID3D11SamplerState>             g_pSamplerBlocky;
 
+// Setup the viewport
+D3D11_VIEWPORT g_viewport;
 std::vector<std::string>                g_texturePaths;
 std::string                             g_pixelShaderFileName;
 FILETIME                                g_lastModifyTime;
+bool                                    g_failToCompileShader = false;
 
 //--------------------------------------------------------------------------------------
 // Forward declarations
@@ -120,8 +125,8 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
     if (g_pixelShaderFileName.length() == 0)
     {
-         MessageBox(NULL, "Usage: HlslShaderToy.exe /path/to/pixel_shader.hlsl", kAppName, MB_OK);
-         return -1;
+        MessageBox(NULL, "Usage: HlslShaderToy.exe /path/to/pixel_shader.hlsl", kAppName, MB_OK);
+        return -1;
     }
 
     if( FAILED( InitWindow( hInstance, nCmdShow ) ) )
@@ -147,6 +152,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         else
         {
             Render();
+            ::Sleep(10);
         }
     }
 
@@ -175,8 +181,11 @@ HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow )
     g_hInst = hInstance;
     RECT rc = { 0, 0, kAppWidth, kAppHeight};
     AdjustWindowRect( &rc, WS_OVERLAPPEDWINDOW, FALSE );
-    g_hWnd = CreateWindow( kAppName, kAppName, WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top, NULL, NULL, hInstance,
+    g_hWnd = CreateWindow( kAppName, kAppName, 
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, 
+        rc.right - rc.left, rc.bottom - rc.top, 
+        NULL, NULL, hInstance,
         NULL );
     if( !g_hWnd )
         return E_FAIL;
@@ -202,8 +211,6 @@ FILETIME getFileModifyTime(const std::string& filename)
 
 HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
 {
-    size_t nCommentLines = 0; // counting // sentences
-
     std::stringstream ss;
     ss << "Opening shader file: " << filename <<"\n";
     OutputDebugStringA(ss.str().c_str());
@@ -213,7 +220,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
     std::ifstream ifs(filename.c_str());
     if (!ifs)
     {
-        return E_FAIL;
+        return D3D11_ERROR_FILE_NOT_FOUND;
     }
 
     g_texturePaths.clear();
@@ -224,15 +231,15 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
     std::string oneline;
     while (std::getline(ifs, oneline))
     {
+        pixelShaderText << oneline << "\n";
+
         std::smatch sm;
         if (std::regex_match (oneline, sm, reComment))
         {
-            //nCommentLines++;
-
             std::string possiblePath = sm.str(1);
             D3DX11_IMAGE_INFO imageInfo;
 
-            if (std::ifstream(filename.c_str()))
+            if (std::ifstream(possiblePath.c_str()))
             {
                 if (SUCCEEDED(D3DX11GetImageInfoFromFile(possiblePath.c_str(), NULL, &imageInfo, NULL)))
                 {
@@ -242,11 +249,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
                     OutputDebugStringA(ss.str().c_str());
                 }
             }
-            pixelShaderText << oneline << "\n";
-        }
-        else
-        {
-            pixelShaderText << oneline << "\n";
+
         }
     }
     ifs.close();
@@ -309,7 +312,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
             std::string lineStr = errorMsg.substr(posCarriageReturn+1, length);
             int lineNo; 
             std::istringstream( lineStr ) >> lineNo;
-            lineNo -= (nCommonShaderNewLines - nCommentLines);
+            lineNo -= nCommonShaderNewLines;
             std::ostringstream ss;
             ss << lineNo;
             errorMsg.replace(posCarriageReturn+1, length, ss.str());
@@ -321,12 +324,14 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
         }
 
         //::Beep( rand()%200+700, 300 );
+        g_failToCompileShader = true;
         OutputDebugStringA(errorMsg.c_str());
-        ::MessageBox(g_hWnd, errorMsg.c_str(), "Shader Compiling Error", MB_OK);
+        ::MessageBox(g_hWnd, errorMsg.c_str(), kErrorBoxName, MB_OK);
 
         return E_FAIL;
     }
 
+    g_failToCompileShader = false;
     g_pPixelShader = NULL;
     V_RETURN(g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader ));
 
@@ -354,6 +359,11 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
         SAFE_RELEASE(g_pTextureSRVs[i]);
     }
 
+    for (int i=0;i<2;i++)
+    {
+        g_pContext->ClearRenderTargetView( PingPong::RTVs[i], kBlackColor );
+    }
+
     g_pTextureSRVs.resize(g_texturePaths.size());
     for (size_t i=0;i<g_texturePaths.size();i++)
     {
@@ -374,6 +384,8 @@ HRESULT InitDevice()
     GetClientRect( g_hWnd, &rc );
     UINT width = rc.right - rc.left;
     UINT height = rc.bottom - rc.top;
+
+    g_viewport = CD3D11_VIEWPORT(0.0f, 0.0f, (float)width, (float)height);
 
     g_cbOneFrame.resolution.x = (float)width;
     g_cbOneFrame.resolution.y = (float)height;
@@ -430,7 +442,7 @@ HRESULT InitDevice()
     CD3D11_TEXTURE2D_DESC texDesc(sd.BufferDesc.Format, 
         sd.BufferDesc.Width, sd.BufferDesc.Height,
         1, 1, D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET);
-    
+
     // create ping-pong RTV & SRV
     for (int i=0;i<2;i++)
     {
@@ -500,6 +512,14 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
             if (ftime.dwLowDateTime != g_lastModifyTime.dwLowDateTime || ftime.dwHighDateTime != g_lastModifyTime.dwHighDateTime)
             {
                 ftime = g_lastModifyTime;
+                if (g_failToCompileShader)
+                {
+                    // close the previous MessageBox
+                    if (HWND hBox = ::FindWindow(NULL, kErrorBoxName))
+                    {
+                        ::SendMessage(hBox, WM_CLOSE, 0, 0);
+                    }
+                }
                 updateShaderAndTexturesFromFile(g_pixelShaderFileName);
             }
         }break;
@@ -542,16 +562,11 @@ void Render()
     static DWORD dwTimeStart = GetTickCount();
     g_cbOneFrame.time = ( GetTickCount() - dwTimeStart ) / 1000.0f;
 
-    {
-        float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // red, green, blue, alpha
-        g_pContext->ClearRenderTargetView( PingPong::RTVs[frontBufferIdx], ClearColor );
-    }
+    g_pContext->ClearRenderTargetView( PingPong::RTVs[frontBufferIdx], kBlackColor );
 
     ID3D11RenderTargetView* pRTVs[] = {PingPong::RTVs[frontBufferIdx]};
     g_pContext->OMSetRenderTargets( 1, pRTVs, NULL );
-    // Setup the viewport
-    CD3D11_VIEWPORT vp(0.0f, 0.0f, (float)kAppWidth, (float)kAppHeight);
-    g_pContext->RSSetViewports( 1, &vp );
+    g_pContext->RSSetViewports( 1, &g_viewport );
 
     g_pContext->UpdateSubresource( g_pCBOneFrame, 0, NULL, &g_cbOneFrame, 0, 0 );
 
