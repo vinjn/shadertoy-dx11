@@ -40,14 +40,14 @@ float noise3d(float3 p)
 
 float4 main( float4 pos: SV_POSITION) : SV_Target
 {
-	float2 uv = 2.0 * pos.xy / iResolution - 1.0;
+	float2 uv = 2.0 * pos.xy / resolution - 1.0;
 	
     float3 water[4];
     float3 fire[4];
 
     float3x3 r = float3x3(0.36, 0.48, -0.8, -0.8, 0.60, 0.0, 0.48, 0.64, 0.60);
     float3 p_pos = mul(float3(uv * float2(16.0, 9.0), 0.0), r);
-    float3 p_time = mul(float3(0.0, 0.0, iGlobalTime * 2.0), r);
+    float3 p_time = mul(float3(0.0, 0.0, time * 2.0), r);
 
     /* Noise sampling points for water */
     water[0] = p_pos / 2.0 + p_time;
@@ -56,18 +56,18 @@ float4 main( float4 pos: SV_POSITION) : SV_Target
     water[3] = p_pos / 16.0 + p_time;
 
     /* Noise sampling points for fire */
-    p_pos = 16.0 * p_pos - mul(float3(0.0, mod289(iGlobalTime) * 128.0, 0.0), r);
+    p_pos = 16.0 * p_pos - mul(float3(0.0, mod289(time) * 128.0, 0.0), r);
     fire[0] = p_pos / 2.0 + p_time * 2.0;
     fire[1] = p_pos / 4.0 + p_time * 1.5;
     fire[2] = p_pos / 8.0 + p_time;
     fire[3] = p_pos / 16.0 + p_time;
 
-    float2x2 rot = float2x2(cos(iGlobalTime), sin(iGlobalTime), -sin(iGlobalTime), cos(iGlobalTime));
+    float2x2 rot = float2x2(cos(time), sin(time), -sin(time), cos(time));
 
 	float2 poszw = mul(uv, rot);
 
 	/* Dither the transition between water and fire */
-    float test = poszw.x * poszw.y + 1.5 * sin(iGlobalTime);
+    float test = poszw.x * poszw.y + 1.5 * sin(time);
     float2 d = float2(16.0, 9.0) * uv;
     test += 0.5 * (length(frac(d) - 0.5) - length(frac(d + 0.5) - 0.5));
 

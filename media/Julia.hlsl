@@ -8,7 +8,7 @@
 float calc( float2 p, float time )
 {
 	p = -1.0 + 2.0*p;
-	p.x *= iResolution.x/iResolution.y;
+	p.x *= resolution.x/resolution.y;
 
 	float ltime = 0.5-0.5*cos(time*0.12);
     float zoom = pow( 0.9, 100.0*ltime );
@@ -53,7 +53,7 @@ static const int NumSamples = 8;
 float4 main( float4 pos : SV_POSITION) : SV_Target
 {
 	#if 1
-	float scol = calc( pos.xy/iResolution.xy, iGlobalTime );
+	float scol = calc( pos.xy/resolution.xy, time );
     #else
 	float scol = 0.0;
 	float h = 0.0;
@@ -61,7 +61,7 @@ float4 main( float4 pos : SV_POSITION) : SV_Target
 	for( int i=0; i<NumSamples; i++ )
 	{
 		float2 of = 0.5 + 0.5*float2( cos(6.3*h), sin(15.0*h) );
-	    scol += calc( (pos.xy+of)/iResolution.xy, iGlobalTime - h*0.4/24.0 );
+	    scol += calc( (pos.xy+of)/resolution.xy, time - h*0.4/24.0 );
 		h += iSamples;
 	}
 	scol *= iSamples;
@@ -71,7 +71,7 @@ float4 main( float4 pos : SV_POSITION) : SV_Target
 	
 	vcol *= float3(1.0,0.98,0.95);
 	
-	float2 uv = pos.xy/iResolution.xy;
+	float2 uv = pos.xy/resolution.xy;
 	vcol *= 0.7 + 0.3*pow(16.0*uv.x*uv.y*(1.0-uv.x)*(1.0-uv.y),0.25);
 	
 	return float4( vcol, 1.0 );

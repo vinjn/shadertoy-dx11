@@ -13,33 +13,35 @@ The usage is quite straightforward:
 bin/HlslShaderToy.exe ../media/HelloWorld.hlsl
 ```
 
-Take HelloWorld.hlsl as an example, which does nothing except showing a image(iChannel[0]) on screen.   
+Take HelloWorld.hlsl as an example, which does nothing except showing textures[0] aka "../media/photo_4.jpg" on screen.   
 ```glsl
 // ../media/photo_4.jpg
 
-float4 main( PS_Input input) : SV_Target
+float4 main( float4 pos : SV_POSITION) : SV_Target
 {
-    return iChannel[0].Sample( smooth, input.tex );
+    return textures[0].Sample( smooth, input.tex );
 }
 ```
 
-If you have previous experience with Hlsl coding, then you must be wondering WTF is smooth and iChannel[0]!!!   
+If you have previous experience with Hlsl coding, then you must be wondering WTF is smooth and textures[0]!!!   
+And how is "../media/photo_4.jpg" working?
 
 Take it easy, the secrect is that following sentences are automatilly added to the shader you provide    
 ```glsl
-Texture2D iChannel[4] : register( t0 );
+Texture2D textures[1] : register( t0 );
+Texture2D backbuffer : register( t1 );
 
 SamplerState smooth : register( s0 );
 SamplerState blocky : register( s1 );
 
-cbuffer cbNeverChanges : register( b0 )
+cbuffer CBOneFrame : register( b0 )
 {
-    float2     iResolution;     // viewport resolution (in pixels)
-    float      iGlobalTime;     // shader playback time (in seconds)
-    float      pad;             // padding
-    float4     iChannelTime;   // channel playback time (in seconds)
-    float4     iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
-    float4     iDate;           // (year, month, day, time in seconds)
+    float2     resolution;     // viewport resolution (in pixels)
+    float      time;           // shader playback time (in seconds)
+    float      pad;            // padding
+    float4     mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
+    float4     date;           // (year, month, day, time in seconds)
 };
+
 
 ```

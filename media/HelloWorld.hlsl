@@ -2,5 +2,5 @@
  
 float4 main( float4 pos : SV_POSITION) : SV_Target
 {
-    return iChannel[0].Sample( smooth, pos.xy / iResolution );
+    return textures[0].Sample( smooth, pos.xy / resolution );
 }

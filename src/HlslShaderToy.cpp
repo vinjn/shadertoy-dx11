@@ -42,12 +42,11 @@ const std::string kVertexShaderCode =
 
 struct CBOneFrame
 {
-    XMFLOAT2    iResolution;     // viewport resolution (in pixels)
-    float       iGlobalTime;     // shader playback time (in seconds)
+    XMFLOAT2    resolution;     // viewport resolution (in pixels)
+    float       time;     // shader playback time (in seconds)
     float       pad;             // padding
-    XMFLOAT4    iChannelTime; // channel playback time (in seconds)
-    XMFLOAT4    iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
-    XMFLOAT4    iDate;           // (year, month, day, time in seconds)
+    XMFLOAT4    mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
+    XMFLOAT4    date;           // (year, month, day, time in seconds)
 }g_cbOneFrame;
 
 //--------------------------------------------------------------------------------------
@@ -58,13 +57,25 @@ HWND                                    g_hWnd;
 D3D_DRIVER_TYPE                         g_driverType;
 D3D_FEATURE_LEVEL                       g_featureLevel;
 CComPtr<ID3D11Device>                   g_pd3dDevice;
-CComPtr<ID3D11DeviceContext>            g_pImmediateContext;
+CComPtr<ID3D11DeviceContext>            g_pContext;
 CComPtr<IDXGISwapChain>                 g_pSwapChain;
+
+namespace PingPong
+{
+    CComPtr<ID3D11Texture2D>                Texs[2];
+    CComPtr<ID3D11ShaderResourceView>       SRVs[2];
+    CComPtr<ID3D11RenderTargetView>         RTVs[2];
+}
+int frontBufferIdx = 0;
+int backBufferIdx = 1;
+
 CComPtr<ID3D11RenderTargetView>         g_pRenderTargetView;
+CComPtr<ID3D11Texture2D>                g_pBackbuffer;;
+
 CComPtr<ID3D11VertexShader>             g_pVertexShader;
 CComPtr<ID3D11PixelShader>              g_pPixelShader;
-CComPtr<ID3D11Buffer>                   g_pCBOneFrame;
-std::vector<ID3D11ShaderResourceView*>  g_pTextureRVs;
+CComPtr<ID3D11Buffer>                   g_pCBOneFrame;      // cbuffer CBOneFrame;
+std::vector<ID3D11ShaderResourceView*>  g_pTextureSRVs;      // Texture2D textures[];
 CComPtr<ID3D11SamplerState>             g_pSamplerSmooth;
 CComPtr<ID3D11SamplerState>             g_pSamplerBlocky;
 
@@ -194,7 +205,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
     size_t nCommentLines = 0; // counting // sentences
 
     std::stringstream ss;
-    ss << "opening shader file " << filename <<"\n";
+    ss << "Opening shader file: " << filename <<"\n";
     OutputDebugStringA(ss.str().c_str());
 
     g_lastModifyTime = getFileModifyTime(filename);
@@ -216,18 +227,22 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
         std::smatch sm;
         if (std::regex_match (oneline, sm, reComment))
         {
-            nCommentLines++;
+            //nCommentLines++;
 
             std::string possiblePath = sm.str(1);
             D3DX11_IMAGE_INFO imageInfo;
 
-            if (SUCCEEDED(D3DX11GetImageInfoFromFile(possiblePath.c_str(), NULL, &imageInfo, NULL)))
+            if (std::ifstream(filename.c_str()))
             {
-                g_texturePaths.push_back(possiblePath);
-                std::stringstream ss;
-                ss << "loading image from " << possiblePath <<"\n";
-                OutputDebugStringA(ss.str().c_str());
+                if (SUCCEEDED(D3DX11GetImageInfoFromFile(possiblePath.c_str(), NULL, &imageInfo, NULL)))
+                {
+                    g_texturePaths.push_back(possiblePath);
+                    std::stringstream ss;
+                    ss << "Loading image from: " << possiblePath <<"\n";
+                    OutputDebugStringA(ss.str().c_str());
+                }
             }
+            pixelShaderText << oneline << "\n";
         }
         else
         {
@@ -239,37 +254,24 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
     std::stringstream pixelShaderHeaderSS;
     if (!g_texturePaths.empty())
     {
-        pixelShaderHeaderSS << "Texture2D iChannel[" << g_texturePaths.size() <<"] : register( t0 );\n";
+        pixelShaderHeaderSS << "Texture2D textures[" << g_texturePaths.size() <<"] : register( t0 );\n";
     }
 
     pixelShaderHeaderSS <<
+        "Texture2D backbuffer : register( t1 );\n"
         "\n"
         "SamplerState smooth : register( s0 );\n"
         "SamplerState blocky : register( s1 );\n"
         "\n"
-        "cbuffer cbNeverChanges : register( b0 )\n"
+        "cbuffer CBOneFrame : register( b0 )\n"
         "{\n"
-        "    float2     iResolution;     // viewport resolution (in pixels)\n"
-        "    float      iGlobalTime;     // shader playback time (in seconds)\n"
-        "    float      pad;             // padding\n"
-        "    float4     iChannelTime;   // channel playback time (in seconds)\n"
-        "    float4     iMouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
-        "    float4     iDate;           // (year, month, day, time in seconds)\n"
+        "    float2     resolution;     // viewport resolution (in pixels)\n"
+        "    float      time;           // shader playback time (in seconds)\n"
+        "    float      pad;            // padding\n"
+        "    float4     mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
+        "    float4     date;           // (year, month, day, time in seconds)\n"
         "};\n"
         "\n"
-#ifdef GLSL_SYNTAX_ENABLED
-        "// to understand GLSL types"
-        "typedef float2 vec2;\n"
-        "typedef float3 vec3;\n"
-        "typedef float4 vec4;\n"
-        "typedef int2 ivec2;\n"
-        "typedef int3 ivec3;\n"
-        "typedef int4 ivec4;\n"
-        "typedef float2x2 mat2;\n"
-        "typedef float3x3 mat3;\n"
-        "typedef float4x4 mat4;\n"
-        "\n"
-#endif
         ;
 
     std::string pixelShaderHeader = pixelShaderHeaderSS.str();
@@ -294,20 +296,31 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
     // hack shader compiling error message
     if (FAILED(hr))
     {
-        size_t lineStrSize = errorMsg.find(',');
+        size_t posCarriageReturn = 0;   // 10
+        size_t posComma = 0;            // ','
 
-        if (lineStrSize != std::string::npos)
+        while (true)
         {
-            lineStrSize --;
-            std::string lineStr = errorMsg.substr(1, lineStrSize);
+            posComma = errorMsg.find(',', posCarriageReturn);
+            if (posComma == std::string::npos)
+                break;
+
+            size_t length = posComma - posCarriageReturn - 1;
+            std::string lineStr = errorMsg.substr(posCarriageReturn+1, length);
             int lineNo; 
             std::istringstream( lineStr ) >> lineNo;
             lineNo -= (nCommonShaderNewLines - nCommentLines);
             std::ostringstream ss;
             ss << lineNo;
-            errorMsg.replace(1, lineStrSize, ss.str());
+            errorMsg.replace(posCarriageReturn+1, length, ss.str());
+
+            posCarriageReturn = errorMsg.find(10, posComma);     
+            if (posCarriageReturn == std::string::npos)
+                break;
+            posCarriageReturn ++;
         }
 
+        //::Beep( rand()%200+700, 300 );
         OutputDebugStringA(errorMsg.c_str());
         ::MessageBox(g_hWnd, errorMsg.c_str(), "Shader Compiling Error", MB_OK);
 
@@ -336,16 +349,18 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
     }
 #endif
 
-    for (size_t i=0;i<g_pTextureRVs.size();i++)
+    for (size_t i=0;i<g_pTextureSRVs.size();i++)
     {
-        SAFE_RELEASE(g_pTextureRVs[i]);
+        SAFE_RELEASE(g_pTextureSRVs[i]);
     }
 
-    g_pTextureRVs.resize(g_texturePaths.size());
+    g_pTextureSRVs.resize(g_texturePaths.size());
     for (size_t i=0;i<g_texturePaths.size();i++)
     {
-        V_RETURN(D3DX11CreateShaderResourceViewFromFile( g_pd3dDevice, g_texturePaths[i].c_str(), NULL, NULL, &g_pTextureRVs[i], NULL ));
+        V_RETURN(D3DX11CreateShaderResourceViewFromFile( g_pd3dDevice, g_texturePaths[i].c_str(), NULL, NULL, &g_pTextureSRVs[i], NULL ));
     }
+
+    ::Beep( rand()%100+200, 300 );
 
     return hr;
 }
@@ -360,8 +375,8 @@ HRESULT InitDevice()
     UINT width = rc.right - rc.left;
     UINT height = rc.bottom - rc.top;
 
-    g_cbOneFrame.iResolution.x = (float)width;
-    g_cbOneFrame.iResolution.y = (float)height;
+    g_cbOneFrame.resolution.x = (float)width;
+    g_cbOneFrame.resolution.y = (float)height;
 
     UINT createDeviceFlags = 0;
 #ifdef _DEBUG
@@ -402,28 +417,29 @@ HRESULT InitDevice()
     {
         g_driverType = driverTypes[driverTypeIndex];
         hr = D3D11CreateDeviceAndSwapChain( NULL, g_driverType, NULL, createDeviceFlags, featureLevels, numFeatureLevels,
-            D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &g_featureLevel, &g_pImmediateContext );
+            D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &g_featureLevel, &g_pContext );
         if( SUCCEEDED( hr ) )
             break;
     }
     if( FAILED( hr ) )
         return hr;
 
-    // Create a render target view
-    ID3D11Texture2D* pBackBuffer = NULL;
-    V_RETURN(g_pSwapChain->GetBuffer( 0, __uuidof( ID3D11Texture2D ), ( LPVOID* )&pBackBuffer ));
+    V_RETURN(g_pSwapChain->GetBuffer( 0, __uuidof( ID3D11Texture2D ), ( LPVOID* )&g_pBackbuffer ));
+    V_RETURN(g_pd3dDevice->CreateRenderTargetView( g_pBackbuffer , NULL, &g_pRenderTargetView ));
 
-    hr = g_pd3dDevice->CreateRenderTargetView( pBackBuffer, NULL, &g_pRenderTargetView );
-    pBackBuffer->Release();
-    if( FAILED( hr ) )
-        return hr;
-
-    ID3D11RenderTargetView* pRTVs[] = {g_pRenderTargetView};
-    g_pImmediateContext->OMSetRenderTargets( 1, pRTVs, NULL );
-
-    // Setup the viewport
-    CD3D11_VIEWPORT vp(0.0f, 0.0f, (float)width, (float)height);
-    g_pImmediateContext->RSSetViewports( 1, &vp );
+    CD3D11_TEXTURE2D_DESC texDesc(sd.BufferDesc.Format, 
+        sd.BufferDesc.Width, sd.BufferDesc.Height,
+        1, 1, D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET);
+    
+    // create ping-pong RTV & SRV
+    for (int i=0;i<2;i++)
+    {
+        V_RETURN(g_pd3dDevice->CreateTexture2D( &texDesc, NULL, &PingPong::Texs[i] ));
+        V_RETURN(g_pd3dDevice->CreateRenderTargetView( PingPong::Texs[i], NULL, &PingPong::RTVs[i] ));
+        ((ID3D11Texture2D*)PingPong::Texs[i])->Release();
+        V_RETURN(g_pd3dDevice->CreateShaderResourceView( PingPong::Texs[i], NULL, &PingPong::SRVs[i] ));
+        ((ID3D11Texture2D*)PingPong::Texs[i])->Release();
+    }
 
     {
         ID3DBlob* pVSBlob = NULL;
@@ -456,11 +472,11 @@ HRESULT InitDevice()
 //--------------------------------------------------------------------------------------
 void CleanupDevice()
 {
-    if( g_pImmediateContext ) g_pImmediateContext->ClearState();
+    if( g_pContext ) g_pContext->ClearState();
 
-    for (size_t i=0;i<g_pTextureRVs.size();i++)
+    for (size_t i=0;i<g_pTextureSRVs.size();i++)
     {
-        SAFE_RELEASE(g_pTextureRVs[i]);
+        SAFE_RELEASE(g_pTextureSRVs[i]);
     }
 }
 
@@ -484,7 +500,6 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
             if (ftime.dwLowDateTime != g_lastModifyTime.dwLowDateTime || ftime.dwHighDateTime != g_lastModifyTime.dwHighDateTime)
             {
                 ftime = g_lastModifyTime;
-                ::Beep( 350, 300 );
                 updateShaderAndTexturesFromFile(g_pixelShaderFileName);
             }
         }break;
@@ -505,8 +520,8 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         }break;
     case WM_MOUSEMOVE:
         {
-            g_cbOneFrame.iMouse.x = (float)mouseX;
-            g_cbOneFrame.iMouse.y = (float)mouseY;
+            g_cbOneFrame.mouse.x = (float)mouseX;
+            g_cbOneFrame.mouse.y = (float)mouseY;
         }break;
     case WM_DESTROY:
         PostQuitMessage( 0 );
@@ -525,32 +540,46 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 void Render()
 {
     static DWORD dwTimeStart = GetTickCount();
-    g_cbOneFrame.iGlobalTime = ( GetTickCount() - dwTimeStart ) / 1000.0f;
+    g_cbOneFrame.time = ( GetTickCount() - dwTimeStart ) / 1000.0f;
 
     {
         float ClearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // red, green, blue, alpha
-        g_pImmediateContext->ClearRenderTargetView( g_pRenderTargetView, ClearColor );
+        g_pContext->ClearRenderTargetView( PingPong::RTVs[frontBufferIdx], ClearColor );
     }
 
-    g_pImmediateContext->UpdateSubresource( g_pCBOneFrame, 0, NULL, &g_cbOneFrame, 0, 0 );
+    ID3D11RenderTargetView* pRTVs[] = {PingPong::RTVs[frontBufferIdx]};
+    g_pContext->OMSetRenderTargets( 1, pRTVs, NULL );
+    // Setup the viewport
+    CD3D11_VIEWPORT vp(0.0f, 0.0f, (float)kAppWidth, (float)kAppHeight);
+    g_pContext->RSSetViewports( 1, &vp );
 
-    g_pImmediateContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+    g_pContext->UpdateSubresource( g_pCBOneFrame, 0, NULL, &g_cbOneFrame, 0, 0 );
 
-    g_pImmediateContext->VSSetShader( g_pVertexShader, NULL, 0 );
+    g_pContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 
-    g_pImmediateContext->PSSetShader( g_pPixelShader, NULL, 0 );
+    g_pContext->VSSetShader( g_pVertexShader, NULL, 0 );
+
+    g_pContext->PSSetShader( g_pPixelShader, NULL, 0 );
     ID3D11Buffer* pCBuffers[] = {g_pCBOneFrame};
-    g_pImmediateContext->PSSetConstantBuffers( 0, 1, pCBuffers );
+    g_pContext->PSSetConstantBuffers( 0, 1, pCBuffers );
 
-    if (!g_pTextureRVs.empty())
-        g_pImmediateContext->PSSetShaderResources( 0, g_pTextureRVs.size(), &g_pTextureRVs[0] );
+    if (!g_pTextureSRVs.empty())
+        g_pContext->PSSetShaderResources( 0, g_pTextureSRVs.size(), &g_pTextureSRVs[0] );
+    ID3D11ShaderResourceView* pSRVs[] = {PingPong::SRVs[backBufferIdx]};
+    g_pContext->PSSetShaderResources( 1, 1, pSRVs );
 
     ID3D11SamplerState* pSamplers[] = {g_pSamplerSmooth, g_pSamplerBlocky};
-    g_pImmediateContext->PSSetSamplers( 0, 2, pSamplers );
+    g_pContext->PSSetSamplers( 0, 2, pSamplers );
 
-    g_pImmediateContext->Draw( 3, 0 );
+    g_pContext->Draw( 3, 0 );
+
+    g_pContext->CopyResource(g_pBackbuffer, PingPong::Texs[frontBufferIdx]);
 
     g_pSwapChain->Present( 0, 0 );
+
+    std::swap(frontBufferIdx, backBufferIdx);
+
+    g_pContext->ClearState();
 }
 
 std::string getOpenFilePath( const std::string &initialPath, std::vector<std::string> extensions )
