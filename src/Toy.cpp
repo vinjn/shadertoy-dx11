@@ -1,42 +1,9 @@
-#include <windows.h>
-#include <windowsx.h>
-#include <d3d11.h>
-#include <d3dx11.h>
-#include <d3dcompiler.h>
-#include <xnamath.h>
-#include <atlbase.h>
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <regex>
-#include <algorithm>
-#include "V.h"
+#include "Toy.h"
 
 HRESULT hr = S_OK;
 
-const char kAppName[] = "HlslShaderToy";
-const char kErrorBoxName[] = "Shader Compiling Error";
-const int kAppWidth = 800;
-const int kAppHeight = 600;
-const int kFileChangeDetectionMS = 1000;
-const float kBlackColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // red, green, blue, alpha
-
 using std::vector;
 using std::string;
-
-namespace std
-{
-    using namespace tr1;
-}
-
-const std::string kVertexShaderCode =
-"float4 VS(uint id : SV_VertexID) : SV_POSITION\n"
-"{\n"
-"    float2 tex = float2((id << 1) & 2, id & 2);\n"
-"    return float4(tex * float2(2,-2) + float2(-1,1), 0, 1);\n"
-"}\n"
-;
 
 //--------------------------------------------------------------------------------------
 // Structures
@@ -83,22 +50,17 @@ CComPtr<ID3D11SamplerState>             g_pSamplerBlocky;
 
 // Setup the viewport
 D3D11_VIEWPORT g_viewport;
-std::vector<std::string>                g_texturePaths;
 std::string                             g_pixelShaderFileName;
 FILETIME                                g_lastModifyTime;
 bool                                    g_failToCompileShader = false;
 
-//--------------------------------------------------------------------------------------
-// Forward declarations
-//--------------------------------------------------------------------------------------
-HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow );
-HRESULT InitDevice();
-void CleanupDevice();
-LRESULT CALLBACK    WndProc( HWND, UINT, WPARAM, LPARAM );
-void Render();
-
-std::string getOpenFilePath( const std::string &initialPath, std::vector<std::string> extensions );
-std::string getAppPath();
+const std::string kVertexShaderCode =
+"float4 VS(uint id : SV_VertexID) : SV_POSITION\n"
+"{\n"
+"    float2 tex = float2((id << 1) & 2, id & 2);\n"
+"    return float4(tex * float2(2,-2) + float2(-1,1), 0, 1);\n"
+"}\n"
+;
 
 //--------------------------------------------------------------------------------------
 // Entry point to the program. Initializes everything and goes into a message processing 
@@ -114,7 +76,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         vector<string> extensions;
         extensions.push_back("hlsl");
         extensions.push_back("fx");
-        g_pixelShaderFileName = getOpenFilePath(getAppPath(), extensions);
+        g_pixelShaderFileName = getOpenFilePath(g_hWnd, getAppPath(), extensions);
     }
     else
     {
@@ -129,14 +91,14 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         return -1;
     }
 
-    if( FAILED( InitWindow( hInstance, nCmdShow ) ) )
+    if( FAILED( SetupWindow( hInstance, nCmdShow ) ) )
         return 0;
 
     ::SetTimer(g_hWnd, 0, kFileChangeDetectionMS, NULL);
 
-    if( FAILED( InitDevice() ) )
+    if( FAILED( SetupDevice() ) )
     {
-        CleanupDevice();
+        DestroyDevice();
         return 0;
     }
 
@@ -156,7 +118,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         }
     }
 
-    CleanupDevice();
+    DestroyDevice();
 
     return ( int )msg.wParam;
 }
@@ -165,7 +127,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 //--------------------------------------------------------------------------------------
 // Register class and create window
 //--------------------------------------------------------------------------------------
-HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow )
+HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow )
 {
     // Register class
     WNDCLASSEX wcex = {sizeof( WNDCLASSEX )};
@@ -174,13 +136,13 @@ HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow )
     wcex.hInstance = hInstance;
     wcex.hCursor = LoadCursor( NULL, IDC_CROSS );
     wcex.lpszClassName = kAppName;
-    if( !RegisterClassEx( &wcex ) )
+    if( !::RegisterClassEx( &wcex ) )
         return E_FAIL;
 
     // Create window
     g_hInst = hInstance;
     RECT rc = { 0, 0, kAppWidth, kAppHeight};
-    AdjustWindowRect( &rc, WS_OVERLAPPEDWINDOW, FALSE );
+    ::AdjustWindowRect( &rc, WS_OVERLAPPEDWINDOW, FALSE );
     g_hWnd = CreateWindow( kAppName, kAppName, 
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 
@@ -190,195 +152,17 @@ HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow )
     if( !g_hWnd )
         return E_FAIL;
 
-    ShowWindow( g_hWnd, nCmdShow );
+    ::ShowWindow( g_hWnd, nCmdShow );
+
+    ::DragAcceptFiles( g_hWnd, TRUE );
 
     return S_OK;
-}
-
-FILETIME getFileModifyTime(const std::string& filename)
-{
-    FILETIME modTime = {0};
-    HANDLE handle = ::CreateFile(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-        OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
-    if (handle != INVALID_HANDLE_VALUE)
-    {
-        BOOL is = GetFileTime(handle, NULL, NULL, &modTime);
-        (is);
-        CloseHandle(handle);
-    }
-    return modTime;
-}
-
-HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
-{
-    std::stringstream ss;
-    ss << "Opening shader file: " << filename <<"\n";
-    OutputDebugStringA(ss.str().c_str());
-
-    g_lastModifyTime = getFileModifyTime(filename);
-
-    std::ifstream ifs(filename.c_str());
-    if (!ifs)
-    {
-        return D3D11_ERROR_FILE_NOT_FOUND;
-    }
-
-    g_texturePaths.clear();
-    const std::regex reComment(".*//\\s*(.*)");
-    // e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
-
-    std::stringstream pixelShaderText;
-    std::string oneline;
-    while (std::getline(ifs, oneline))
-    {
-        pixelShaderText << oneline << "\n";
-
-        std::smatch sm;
-        if (std::regex_match (oneline, sm, reComment))
-        {
-            std::string possiblePath = sm.str(1);
-            D3DX11_IMAGE_INFO imageInfo;
-
-            if (std::ifstream(possiblePath.c_str()))
-            {
-                if (SUCCEEDED(D3DX11GetImageInfoFromFile(possiblePath.c_str(), NULL, &imageInfo, NULL)))
-                {
-                    g_texturePaths.push_back(possiblePath);
-                    std::stringstream ss;
-                    ss << "Loading image from: " << possiblePath <<"\n";
-                    OutputDebugStringA(ss.str().c_str());
-                }
-            }
-
-        }
-    }
-    ifs.close();
-
-    std::stringstream pixelShaderHeaderSS;
-    if (!g_texturePaths.empty())
-    {
-        pixelShaderHeaderSS << "Texture2D textures[" << g_texturePaths.size() <<"] : register( t0 );\n";
-    }
-
-    pixelShaderHeaderSS <<
-        "Texture2D backbuffer : register( t1 );\n"
-        "\n"
-        "SamplerState smooth : register( s0 );\n"
-        "SamplerState blocky : register( s1 );\n"
-        "\n"
-        "cbuffer CBOneFrame : register( b0 )\n"
-        "{\n"
-        "    float2     resolution;     // viewport resolution (in pixels)\n"
-        "    float      time;           // shader playback time (in seconds)\n"
-        "    float      pad;            // padding\n"
-        "    float4     mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
-        "    float4     date;           // (year, month, day, time in seconds)\n"
-        "};\n"
-        "\n"
-        ;
-
-    std::string pixelShaderHeader = pixelShaderHeaderSS.str();
-    const size_t nCommonShaderNewLines = std::count(pixelShaderHeader.begin(), pixelShaderHeader.end(), '\n');
-
-    // add together
-    std::string psText = pixelShaderHeader + pixelShaderText.str();
-
-    // output complete shader file
-    {
-        std::ofstream completeShaderFile((filename+".expanded.txt").c_str());
-        if (completeShaderFile)
-        {
-            completeShaderFile << psText;
-        }
-    }
-
-    ID3DBlob* pPSBlob = NULL;
-    std::string errorMsg;
-    hr = CompileShaderFromMemory( psText.c_str(), "main", "ps_4_0", &pPSBlob, &errorMsg );
-
-    // hack shader compiling error message
-    if (FAILED(hr))
-    {
-        size_t posCarriageReturn = 0;   // 10
-        size_t posComma = 0;            // ','
-
-        while (true)
-        {
-            posComma = errorMsg.find(',', posCarriageReturn);
-            if (posComma == std::string::npos)
-                break;
-
-            size_t length = posComma - posCarriageReturn - 1;
-            std::string lineStr = errorMsg.substr(posCarriageReturn+1, length);
-            int lineNo; 
-            std::istringstream( lineStr ) >> lineNo;
-            lineNo -= nCommonShaderNewLines;
-            std::ostringstream ss;
-            ss << lineNo;
-            errorMsg.replace(posCarriageReturn+1, length, ss.str());
-
-            posCarriageReturn = errorMsg.find(10, posComma);     
-            if (posCarriageReturn == std::string::npos)
-                break;
-            posCarriageReturn ++;
-        }
-
-        //::Beep( rand()%200+700, 300 );
-        g_failToCompileShader = true;
-        OutputDebugStringA(errorMsg.c_str());
-        ::MessageBox(g_hWnd, errorMsg.c_str(), kErrorBoxName, MB_OK);
-
-        return E_FAIL;
-    }
-
-    g_failToCompileShader = false;
-    g_pPixelShader = NULL;
-    V_RETURN(g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader ));
-
-    std::stringstream titleSS;
-    titleSS << filename << " - " << kAppName;
-    ::SetWindowText(g_hWnd, titleSS.str().c_str());
-
-#ifdef TEST_SHADER_REFLECTION
-    // shader reflection
-    {
-        ID3D11ShaderReflection* pReflector = NULL; 
-        V_RETURN( D3DReflect( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), 
-            IID_ID3D11ShaderReflection, (void**) &pReflector) );
-
-        D3D11_SHADER_DESC desc;
-        V_RETURN(pReflector->GetDesc(&desc));
-
-        UINT nCBs = desc.ConstantBuffers;
-        UNREFERENCED_PARAMETER(nCBs);
-    }
-#endif
-
-    for (size_t i=0;i<g_pTextureSRVs.size();i++)
-    {
-        SAFE_RELEASE(g_pTextureSRVs[i]);
-    }
-
-    for (int i=0;i<2;i++)
-    {
-        g_pContext->ClearRenderTargetView( PingPong::RTVs[i], kBlackColor );
-    }
-
-    g_pTextureSRVs.resize(g_texturePaths.size());
-    for (size_t i=0;i<g_texturePaths.size();i++)
-    {
-        V_RETURN(D3DX11CreateShaderResourceViewFromFile( g_pd3dDevice, g_texturePaths[i].c_str(), NULL, NULL, &g_pTextureSRVs[i], NULL ));
-    }
-
-    ::Beep( rand()%100+200, 300 );
-
-    return hr;
 }
 
 //--------------------------------------------------------------------------------------
 // Create Direct3D device and swap chain
 //--------------------------------------------------------------------------------------
-HRESULT InitDevice()
+HRESULT SetupDevice()
 {
     RECT rc;
     GetClientRect( g_hWnd, &rc );
@@ -482,7 +266,7 @@ HRESULT InitDevice()
 //--------------------------------------------------------------------------------------
 // Clean up the objects we've created
 //--------------------------------------------------------------------------------------
-void CleanupDevice()
+void DestroyDevice()
 {
     if( g_pContext ) g_pContext->ClearState();
 
@@ -490,6 +274,14 @@ void CleanupDevice()
     {
         SAFE_RELEASE(g_pTextureSRVs[i]);
     }
+}
+
+
+void DestroyWindow()
+{
+    if( g_hWnd )
+        ::DestroyWindow( g_hWnd );
+    UnregisterClass(kAppName, g_hInst);
 }
 
 
@@ -503,6 +295,8 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 
     int mouseX = GET_X_LPARAM(lParam);
     int mouseY = GET_Y_LPARAM(lParam);
+
+    bool isShaderDirty = false;
 
     switch( message )
     {
@@ -520,13 +314,37 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
                         ::SendMessage(hBox, WM_CLOSE, 0, 0);
                     }
                 }
-                updateShaderAndTexturesFromFile(g_pixelShaderFileName);
+                isShaderDirty = true;
             }
+        }break;
+    case WM_DROPFILES: 
+        {
+            HDROP dropH = (HDROP)wParam;
+            char fileName[8192];
+
+            int droppedFileCount = ::DragQueryFile( dropH, 0xFFFFFFFF, 0, 0 );
+            for( int i = 0; i < droppedFileCount; ++i ) 
+            {
+                ::DragQueryFileA( dropH, i, fileName, 8192 );
+                if (strstr(fileName, ".hlsl") || strstr(fileName, ".fx"))
+                {
+                    g_pixelShaderFileName = fileName;
+                    isShaderDirty = true;
+                    break;
+                }
+            }
+
+            if (!isShaderDirty)
+            {
+                ::MessageBox(g_hWnd, "Please drag a shader file (.hlsl or .fx).", kAppName, MB_OK);
+            }
+
+            ::DragFinish( dropH );
         }break;
     case WM_PAINT:
         {
-            hdc = BeginPaint( hWnd, &ps );
-            EndPaint( hWnd, &ps );
+            hdc = ::BeginPaint( hWnd, &ps );
+            ::EndPaint( hWnd, &ps );
         }break;
     case WM_KEYUP:
         {
@@ -548,6 +366,15 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         break;
     default:
         return DefWindowProc( hWnd, message, wParam, lParam );
+    }
+
+    if (isShaderDirty)
+    {
+        updateShaderAndTexturesFromFile(g_pixelShaderFileName);
+        for (int i=0;i<2;i++)
+        {
+            g_pContext->ClearRenderTargetView( PingPong::RTVs[i], kBlackColor );
+        }
     }
 
     return 0;
@@ -595,90 +422,4 @@ void Render()
     std::swap(frontBufferIdx, backBufferIdx);
 
     g_pContext->ClearState();
-}
-
-std::string getOpenFilePath( const std::string &initialPath, std::vector<std::string> extensions )
-{
-    OPENFILENAMEA ofn;       // common dialog box structure
-    char szFile[260];       // buffer for file name
-
-    // Initialize OPENFILENAME
-    ::ZeroMemory( &ofn, sizeof(ofn) );
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = g_hWnd;
-    ofn.lpstrFile = szFile;
-
-    // Set lpstrFile[0] to '\0' so that GetOpenFileName does not
-    // use the contents of szFile to initialize itself.
-    //
-    ofn.lpstrFile[0] = '\0';
-    ofn.nMaxFile = sizeof( szFile );
-    if( extensions.empty() ) {
-        ofn.lpstrFilter = "All\0*.*\0";
-    }
-    else {
-        char extensionStr[10000];
-        size_t offset = 0;
-
-        strcpy( extensionStr, "Supported Types" );
-        offset += strlen( extensionStr ) + 1;
-        for( vector<string>::const_iterator strIt = extensions.begin(); strIt != extensions.end(); ++strIt ) {
-            strcpy( extensionStr + offset, "*." );
-            offset += 2;
-            strcpy( extensionStr + offset, strIt->c_str() );
-            offset += strIt->length();
-            // append a semicolon to all but the last extensions
-            if( strIt + 1 != extensions.end() ) {
-                extensionStr[offset] = ';';
-                offset += 1;
-            }
-            else {
-                extensionStr[offset] = 0;
-                offset += 1;
-            }
-        }
-
-        extensionStr[offset] = 0;
-        ofn.lpstrFilter = extensionStr;
-    }
-    ofn.nFilterIndex = 1;
-    ofn.lpstrFileTitle = NULL;
-    ofn.nMaxFileTitle = 0;
-    if( initialPath.empty() )
-        ofn.lpstrInitialDir = NULL;
-    else {
-        char initialPathStr[MAX_PATH];
-        strcpy( initialPathStr, initialPath.c_str() );
-        ofn.lpstrInitialDir = initialPathStr;
-    }
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-
-    // Display the Open dialog box.
-    if( ::GetOpenFileNameA( &ofn ) == TRUE ) {
-        return string( ofn.lpstrFile );
-    }
-    else
-        return string();
-}
-
-std::string getAppPath()
-{
-    char appPath[MAX_PATH] = "";
-
-    // fetch the path of the executable
-    ::GetModuleFileNameA( 0, appPath, sizeof(appPath) - 1);
-
-    // get a pointer to the last occurrence of the windows path separator
-    char *appDir = strrchr( appPath, '\\' );
-    if( appDir ) {
-        ++appDir;
-
-        // always expect the unexpected - this shouldn't be null but one never knows
-        if( appDir ) {
-            // null terminate the string
-            *appDir = 0;
-        }
-    }
-
-    return std::string( appPath );
 }

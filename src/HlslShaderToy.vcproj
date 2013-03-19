@@ -486,7 +486,19 @@
 	</References>
 	<Files>
 		<File
-			RelativePath="HlslShaderToy.cpp"
+			RelativePath=".\Toy.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Toy.h"
+			>
+		</File>
+		<File
+			RelativePath=".\Toy.Shader.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\V.cpp"
 			>
 		</File>
 		<File

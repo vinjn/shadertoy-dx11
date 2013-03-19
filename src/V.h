@@ -1,6 +1,10 @@
 #pragma once
 
+#include <d3d11.h>
+#include <d3dx11.h>
 #include <dxerr.h>
+#include <string>
+#include <vector>
 
 #if defined(DEBUG) || defined(_DEBUG)
 #ifndef V
@@ -32,76 +36,10 @@
 //--------------------------------------------------------------------------------------
 // Helper for compiling shaders with D3DX11
 //--------------------------------------------------------------------------------------
-inline HRESULT CompileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut )
-{
-    HRESULT hr = S_OK;
+HRESULT CompileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut );
 
-    DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined( DEBUG ) || defined( _DEBUG )
-    // Set the D3DCOMPILE_DEBUG flag to embed debug information in the shaders.
-    // Setting this flag improves the shader debugging experience, but still allows 
-    // the shaders to be optimized and to run exactly the way they will run in 
-    // the release configuration of this program.
-    dwShaderFlags |= D3DCOMPILE_DEBUG;
-#endif
+HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut, std::string* pErrorStr = NULL);
 
-    ID3DBlob* pErrorBlob;
-    hr = D3DX11CompileFromFileA( szFileName, NULL, NULL, szEntryPoint, szShaderModel, 
-        dwShaderFlags, 0, NULL, ppBlobOut, &pErrorBlob, NULL );
-    if( FAILED(hr) )
-    {
-        if( pErrorBlob != NULL )
-            OutputDebugStringA( (char*)pErrorBlob->GetBufferPointer() );
-        if( pErrorBlob ) pErrorBlob->Release();
-        return hr;
-    }
-    if( pErrorBlob ) pErrorBlob->Release();
-
-    return S_OK;
-}
-
-
-//--------------------------------------------------------------------------------------
-// Helper for compiling shaders with D3DX11
-//--------------------------------------------------------------------------------------
-inline HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut, std::string* pErrorStr = NULL)
-{
-    HRESULT hr = S_OK;
-
-    DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS;
-#if defined( DEBUG ) || defined( _DEBUG )
-    // Set the D3DCOMPILE_DEBUG flag to embed debug information in the shaders.
-    // Setting this flag improves the shader debugging experience, but still allows 
-    // the shaders to be optimized and to run exactly the way they will run in 
-    // the release configuration of this program.
-    dwShaderFlags |= D3DCOMPILE_DEBUG;
-#endif
-
-    ID3DBlob* pErrorBlob;
-    hr = D3DX11CompileFromMemory( szText, strlen(szText), 
-        NULL, NULL, NULL,
-        szEntryPoint, szShaderModel, 
-        dwShaderFlags, 0, NULL, 
-        ppBlobOut, &pErrorBlob, 
-        NULL );
-    if( FAILED(hr) )
-    {
-        if( pErrorBlob != NULL )
-        {
-            if (pErrorStr == NULL)
-            {
-                OutputDebugStringA((char*)pErrorBlob->GetBufferPointer());
-            }
-            else
-            {
-                *pErrorStr = (char*)pErrorBlob->GetBufferPointer();
-            }
-        }
-        if( pErrorBlob ) pErrorBlob->Release();
-        return hr;
-    }
-    if( pErrorBlob ) pErrorBlob->Release();
-
-    return S_OK;
-}
-
+std::string getOpenFilePath( HWND hWnd, const std::string &initialPath, std::vector<std::string> extensions );
+std::string getAppPath();
+FILETIME getFileModifyTime(const std::string& filename);
