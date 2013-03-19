@@ -485,6 +485,22 @@
 	<References>
 	</References>
 	<Files>
+		<Filter
+			Name="resource"
+			>
+			<File
+				RelativePath=".\HlslShaderToy.rc"
+				>
+			</File>
+			<File
+				RelativePath=".\icon.ico"
+				>
+			</File>
+			<File
+				RelativePath=".\resource.h"
+				>
+			</File>
+		</Filter>
 		<File
 			RelativePath=".\Toy.cpp"
 			>

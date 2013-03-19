@@ -1,4 +1,5 @@
 #include "Toy.h"
+#include "resource.h"
 
 HRESULT hr = S_OK;
 
@@ -134,6 +135,7 @@ HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow )
     wcex.style = CS_HREDRAW | CS_VREDRAW;
     wcex.lpfnWndProc = WndProc;
     wcex.hInstance = hInstance;
+    wcex.hIcon  =   ::LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
     wcex.hCursor = LoadCursor( NULL, IDC_CROSS );
     wcex.lpszClassName = kAppName;
     if( !::RegisterClassEx( &wcex ) )
