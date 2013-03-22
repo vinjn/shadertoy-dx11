@@ -70,6 +70,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
         "\n"
         "SamplerState smooth : register( s0 );\n"
         "SamplerState blocky : register( s1 );\n"
+        "SamplerState mirror : register( s2 );\n"
         "\n"
         "cbuffer CBOneFrame : register( b0 )\n"
         "{\n"
@@ -90,7 +91,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
 
     // output complete shader file
     {
-        std::ofstream completeShaderFile((filename+".expanded.txt").c_str());
+        std::ofstream completeShaderFile((filename+".hlsl").c_str());
         if (completeShaderFile)
         {
             completeShaderFile << psText;

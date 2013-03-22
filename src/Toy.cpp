@@ -13,8 +13,8 @@ using std::string;
 struct CBOneFrame
 {
     XMFLOAT2    resolution;     // viewport resolution (in pixels)
-    float       time;     // shader playback time (in seconds)
-    float       pad;             // padding
+    float       time;           // shader playback time (in seconds)
+    float       pad;            // padding
     XMFLOAT4    mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
     XMFLOAT4    date;           // (year, month, day, time in seconds)
 }g_cbOneFrame;
@@ -48,6 +48,7 @@ CComPtr<ID3D11Buffer>                   g_pCBOneFrame;      // cbuffer CBOneFram
 std::vector<ID3D11ShaderResourceView*>  g_pTextureSRVs;      // Texture2D textures[];
 CComPtr<ID3D11SamplerState>             g_pSamplerSmooth;
 CComPtr<ID3D11SamplerState>             g_pSamplerBlocky;
+CComPtr<ID3D11SamplerState>             g_pSamplerMirror;
 
 // Setup the viewport
 D3D11_VIEWPORT g_viewport;
@@ -75,8 +76,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     if (strlen(lpCmdLine) == 0)
     {
         vector<string> extensions;
-        extensions.push_back("hlsl");
-        extensions.push_back("fx");
+        extensions.push_back("toy");
         g_pixelShaderFileName = getOpenFilePath(g_hWnd, getAppPath(), extensions);
     }
     else
@@ -88,7 +88,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
     if (g_pixelShaderFileName.length() == 0)
     {
-        MessageBox(NULL, "Usage: HlslShaderToy.exe /path/to/pixel_shader.hlsl", kAppName, MB_OK);
+        MessageBox(NULL, "Usage: HlslShaderToy.exe /path/to/pixel_shader.toy", kAppName, MB_OK);
         return -1;
     }
 
@@ -252,14 +252,16 @@ HRESULT SetupDevice()
 
     V(updateShaderAndTexturesFromFile(g_pixelShaderFileName));
 
-    // Create the sample state
     CD3D11_SAMPLER_DESC sampDesc(D3D11_DEFAULT);
-    sampDesc.MinLOD = 0;
-    sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     V_RETURN(g_pd3dDevice->CreateSamplerState( &sampDesc, &g_pSamplerSmooth ));
 
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     V_RETURN(g_pd3dDevice->CreateSamplerState( &sampDesc, &g_pSamplerBlocky ));
+
+    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
+    V_RETURN(g_pd3dDevice->CreateSamplerState( &sampDesc, &g_pSamplerMirror ));
 
     return S_OK;
 }
@@ -328,7 +330,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
             for( int i = 0; i < droppedFileCount; ++i ) 
             {
                 ::DragQueryFileA( dropH, i, fileName, 8192 );
-                if (strstr(fileName, ".hlsl") || strstr(fileName, ".fx"))
+                if (strstr(fileName, ".toy"))
                 {
                     g_pixelShaderFileName = fileName;
                     isShaderDirty = true;
@@ -338,7 +340,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 
             if (!isShaderDirty)
             {
-                ::MessageBox(g_hWnd, "Please drag a shader file (.hlsl or .fx).", kAppName, MB_OK);
+                ::MessageBox(g_hWnd, "Please drag a shader file (.toy).", kAppName, MB_OK);
             }
 
             ::DragFinish( dropH );

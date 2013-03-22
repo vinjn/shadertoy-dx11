@@ -10,7 +10,7 @@ Certainly it won't run in a browser since there is no WebD3D.
 
 The usage is quite straightforward:
 ```
-bin/HlslShaderToy.exe ../media/HelloWorld.hlsl
+bin/HlslShaderToy.exe ../media/HelloWorld.toy
 ```
 
 Take HelloWorld.hlsl as an example, which does nothing except showing textures[0] aka "../media/photo_4.jpg" on screen.   
@@ -33,6 +33,7 @@ Texture2D backbuffer : register( t1 );
 
 SamplerState smooth : register( s0 );
 SamplerState blocky : register( s1 );
+SamplerState mirror : register( s2 );
 
 cbuffer CBOneFrame : register( b0 )
 {
