@@ -1,0 +1,227 @@
+/*********************************************************************NVMH3****
+File:  $Id: //sw/devtools/SDK/9.5/SDK/MEDIA/HLSL/scene_raytrace.fx#1 $
+   
+Copyright NVIDIA Corporation 2004
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THIS SOFTWARE IS PROVIDED
+*AS IS* AND NVIDIA AND ITS SUPPLIERS DISCLAIM ALL WARRANTIES, EITHER EXPRESS
+OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE.  IN NO EVENT SHALL NVIDIA OR ITS SUPPLIERS
+BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR CONSEQUENTIAL DAMAGES
+WHATSOEVER (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF BUSINESS PROFITS,
+BUSINESS INTERRUPTION, LOSS OF BUSINESS INFORMATION, OR ANY OTHER PECUNIARY LOSS)
+ARISING OUT OF THE USE OF OR INABILITY TO USE THIS SOFTWARE, EVEN IF NVIDIA HAS
+BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+  
+Comments:
+	Simple ray tracer in a pixel shader
+  	- this is intended to demonstrate branching and early exit in PS 3.0
+  	- based on Paul Heckbert's code from "An Introduction to Ray Tracing"
+ 	- it only supports spheres currently
+	sgreen@nvidia.com 12/2003
+
+***************************************************************/
+// e:\__svn_pool\HlslShaderToy\media\Checkered.jpg
+
+float foclen = 500.0;
+
+float3 lightPosition = { 10.0, 10.0, -10.0 };
+
+float4 lightColor = { 1.0, 1.0, 1.0, 1.0 };
+
+float shininess = 40.0;
+
+float4 backgroundColor = { 0.0, 0.0, 0.0, 1.0 };
+
+static float4x4 view = 
+{ 
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 6,
+    0, 0, 0, 1,
+};
+
+struct Ray {
+	float3 o;	// origin
+	float3 d;	// direction
+};
+
+struct Sphere {
+  float3 centre;
+  float rad2;	// radius^2
+  float4 color;
+  float Kd, Ks, Kr;
+};
+
+// Object database stored in constants
+#define SQR(N) (N*N)
+#define NOBJECTS 3
+
+static Sphere object[NOBJECTS] = {
+	{
+		0.0, 0.0, 0.0,
+		SQR(1.0),
+		0.0, 0.5, 1.0, 1.0,
+		1.0, 1.0, 0.5,
+	},
+	{
+		1.5, -0.5, 0.0,
+		SQR(0.5),
+		0.0, 1.0, 0.0, 1.0,
+		1.0, 1.0, 0.5,
+	},	
+	{
+		0.0, -101.0, 0.0,
+		SQR(100.0),
+		1.0, 1.0, 1.0, 1.0,
+		1.0, 1.0, 0.5,
+	}
+};
+static float eps = 0.001;	// error epsilon
+
+float SphereIntersect(Sphere s, Ray ray, out bool hit)
+{
+  float3 v = s.centre - ray.o;
+  float b = dot(v, ray.d);
+  float disc = (b*b) - dot(v, v) + s.rad2;
+
+  hit = true;
+  // note - early returns not supported by HLSL compiler currently:
+//  if (disc<=0) return -1.0; // ray misses
+  if (disc<=0) hit = false;;
+
+  disc = sqrt(disc);
+  float t2 = b + disc;
+
+//  if (t2<=eps) return -1.0; // behind ray origin
+  if (t2<=eps) hit = false; // behind ray origin
+
+  float t1 = b - disc;
+
+  if ((t1>eps) && (t1<t2))  // return nearest intersection
+    return t1;
+  else
+    return t2;
+}
+
+float3 SphereNormal(Sphere s, float3 i)
+{
+	return normalize(i - s.centre);
+}
+
+// find nearest hit
+// returns intersection point
+float3 NearestHit(Ray ray, out int hitobj, out bool anyhit)
+{
+	float mint = 1e10;
+	hitobj = -1;
+ 	anyhit = false;
+	for(int i=0; i<NOBJECTS; i++) {
+		bool hit;
+		float t = SphereIntersect(object[i], ray, hit);
+		if (hit) {
+			if (t < mint) {
+				hitobj = i;
+				mint = t;
+				anyhit = true;
+			}
+		}
+	}
+	return ray.o + ray.d*mint;
+}
+
+// test for any hit (for shadow rays)
+bool AnyHit(Ray ray)
+{
+	for(int i=0; i<NOBJECTS; i++) {
+		bool hit;
+		float t = SphereIntersect(object[i], ray, hit);
+		if (hit) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Phong lighting model
+float4 Phong(float3 n, float3 l, float3 v, float shininess, float4 diffuseColor, float4 specularColor)
+{
+	float ndotl = dot(n, l);
+	float diff = saturate(ndotl);
+	float3 r = reflect(l, n);
+	float spec = pow(saturate(dot(v, r)), shininess) * (ndotl > 0.0);
+	return diff*diffuseColor + spec*specularColor;
+}
+
+float4 Shade(float3 i, float3 n, float3 v, int hitobj)
+{
+	float3 l = normalize(lightPosition - i);
+
+	// check if shadowed
+	Ray shadowray;
+	shadowray.o = i;
+	shadowray.d = l;
+	bool shadowed = AnyHit(shadowray);
+
+	// lighting
+	float4 diff = object[hitobj].color * object[hitobj].Kd;
+	if (hitobj==2) {
+		diff *= textures[0].Sample(smooth, i.xz);	// floor texture
+	}
+	float4 spec = lightColor * object[hitobj].Ks;
+	float shadowFactor = 0.25 + 0.75*!shadowed;	
+	
+	return Phong(n, l, v, shininess, diff, spec) * shadowFactor;
+}
+
+void animate_scene(float time)
+{
+	object[1].centre.x = sin(time)*1.5;
+	object[1].centre.z = cos(time)*1.5;
+}
+
+float4 main(float4 pos : SV_POSITION) : SV_TARGET
+{
+	animate_scene(time);
+	
+	// calculate eye ray
+	float3 d;
+	d.xy = pos.xy * 2.0 - resolution;
+	d.y = -d.y;	// flip y axis
+	d.z = foclen;
+
+	// transform by view matrix
+	Ray eyeray;
+	eyeray.o = mul(float4(0, 0, 0, 1), view).xyz;
+	eyeray.d = mul(d, (float3x3) view);
+	eyeray.d = normalize(eyeray.d);
+
+	// find nearest hit
+	int hitobj;
+	bool hit;
+	float3 i = NearestHit(eyeray, hitobj, hit);
+	float4 c = backgroundColor;
+	if (hit) {
+		// shade surface
+		float3 n = SphereNormal(object[hitobj], i);
+		c = Shade(i, n, eyeray.d, hitobj);
+#if 1
+		// shoot reflection ray
+        // level 2 recursion
+		float3 r = reflect(eyeray.d, n);
+		Ray reflray;
+		reflray.o = i;
+		reflray.d = r;
+		int hitobj2;
+		i = NearestHit(reflray, hitobj2, hit);
+		if (hit) {
+			n = SphereNormal(object[hitobj2], i);
+			c += Shade(i, n, reflray.d, hitobj2) * object[hitobj].Kr;
+		} else {
+			c += backgroundColor;
+		}
+#endif
+	}
+
+	return c;
+}
+
