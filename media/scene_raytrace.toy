@@ -20,23 +20,23 @@ Comments:
 	sgreen@nvidia.com 12/2003
 
 ***************************************************************/
-// e:\__svn_pool\HlslShaderToy\media\Checkered.jpg
+// ..\media\Checkered.jpg
 
-float foclen = 500.0;
+static float foclen = 500.0;
 
-float3 lightPosition = { 10.0, 10.0, -10.0 };
+static float3 lightPosition = { 10.0, 10.0, -10.0 };
 
-float4 lightColor = { 1.0, 1.0, 1.0, 1.0 };
+static float4 lightColor = { 1.0, 1.0, 1.0, 1.0 };
 
-float shininess = 40.0;
+static float shininess = 40.0;
 
-float4 backgroundColor = { 0.0, 0.0, 0.0, 1.0 };
+static float4 backgroundColor = { 0.1, 0.1, 0.1, 1.0 };
 
 static float4x4 view = 
 { 
     1, 0, 0, 0,
     0, 1, 0, 0,
-    0, 0, 1, 6,
+    0, 0, 1, 1000,
     0, 0, 0, 1,
 };
 
@@ -175,8 +175,8 @@ float4 Shade(float3 i, float3 n, float3 v, int hitobj)
 
 void animate_scene(float time)
 {
-	object[1].centre.x = sin(time)*1.5;
-	object[1].centre.z = cos(time)*1.5;
+    lightPosition.x = cos(time)*10;
+    lightPosition.z = sin(time)*10;
 }
 
 float4 main(float4 pos : SV_POSITION) : SV_TARGET
@@ -191,7 +191,7 @@ float4 main(float4 pos : SV_POSITION) : SV_TARGET
 
 	// transform by view matrix
 	Ray eyeray;
-	eyeray.o = mul(float4(0, 0, 0, 1), view).xyz;
+	eyeray.o = mul(float4(0, 0, -5, 1), view).xyz;
 	eyeray.d = mul(d, (float3x3) view);
 	eyeray.d = normalize(eyeray.d);
 
