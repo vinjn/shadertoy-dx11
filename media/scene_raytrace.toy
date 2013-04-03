@@ -22,14 +22,12 @@ Comments:
 ***************************************************************/
 // ..\media\Checkered.jpg
 
+#define REFLECTION_ENABLED
+
 static float foclen = 500.0;
-
 static float3 lightPosition = { 10.0, 10.0, -10.0 };
-
 static float4 lightColor = { 1.0, 1.0, 1.0, 1.0 };
-
 static float shininess = 40.0;
-
 static float4 backgroundColor = { 0.1, 0.1, 0.1, 1.0 };
 
 static float4x4 view = 
@@ -40,12 +38,14 @@ static float4x4 view =
     0, 0, 0, 1,
 };
 
-struct Ray {
+struct Ray 
+{
     float3 o;   // origin
     float3 d;   // direction
 };
 
-struct Sphere {
+struct Sphere 
+{
   float3 centre;
   float rad2;   // radius^2
   float4 color;
@@ -56,7 +56,8 @@ struct Sphere {
 #define SQR(N) (N*N)
 #define NOBJECTS 3
 
-static Sphere object[NOBJECTS] = {
+static Sphere object[NOBJECTS] =
+{
     {
         0.0, 0.0, 0.0,
         SQR(1.0),
@@ -76,53 +77,49 @@ static Sphere object[NOBJECTS] = {
         1.0, 1.0, 0.5,
     }
 };
-static float eps = 0.001;   // error epsilon
+static float EPSILON = 0.001;
 
-float SphereIntersect(Sphere s, Ray ray, out bool hit)
+float sphereIntersect(Sphere s, Ray ray)
 {
-  float3 v = s.centre - ray.o;
-  float b = dot(v, ray.d);
-  float disc = (b*b) - dot(v, v) + s.rad2;
+    float3 v = s.centre - ray.o;
+    float b = dot(v, ray.d);
+    float disc = (b*b) - dot(v, v) + s.rad2;
 
-  hit = true;
-  // note - early returns not supported by HLSL compiler currently:
-//  if (disc<=0) return -1.0; // ray misses
-  if (disc<=0) hit = false;;
+    if (disc<=0) return -1.0; // ray misses
 
-  disc = sqrt(disc);
-  float t2 = b + disc;
+    disc = sqrt(disc);
+    float t2 = b + disc;
 
-//  if (t2<=eps) return -1.0; // behind ray origin
-  if (t2<=eps) hit = false; // behind ray origin
+    if (t2<=EPSILON) return -1.0; // behind ray origin
 
-  float t1 = b - disc;
+    float t1 = b - disc;
 
-  if ((t1>eps) && (t1<t2))  // return nearest intersection
-    return t1;
-  else
-    return t2;
+    if ((t1>EPSILON) && (t1<t2))  // return nearest intersection
+        return t1;
+    else
+        return t2;
 }
 
-float3 SphereNormal(Sphere s, float3 i)
+float3 calcSphereNormal(Sphere s, float3 i)
 {
     return normalize(i - s.centre);
 }
 
-// find nearest hit
+// find nearest hit, stored in hitId
 // returns intersection point
-float3 NearestHit(Ray ray, out int hitobj, out bool anyhit)
+float3 nearestHit(Ray ray, out int hitId)
 {
     float mint = 1e10;
-    hitobj = -1;
-    anyhit = false;
-    for(int i=0; i<NOBJECTS; i++) {
-        bool hit;
-        float t = SphereIntersect(object[i], ray, hit);
-        if (hit) {
-            if (t < mint) {
-                hitobj = i;
+    hitId = -1;
+    for(int i=0; i<NOBJECTS; i++) 
+    {
+        float t = sphereIntersect(object[i], ray);
+        if (t > 0)
+        {
+            if (t < mint) 
+            {
+                hitId = i;
                 mint = t;
-                anyhit = true;
             }
         }
     }
@@ -130,14 +127,12 @@ float3 NearestHit(Ray ray, out int hitobj, out bool anyhit)
 }
 
 // test for any hit (for shadow rays)
-bool AnyHit(Ray ray)
+bool anyHit(Ray ray)
 {
-    for(int i=0; i<NOBJECTS; i++) {
-        bool hit;
-        float t = SphereIntersect(object[i], ray, hit);
-        if (hit) {
+    for(int i=0; i<NOBJECTS; i++)
+    {
+        if (sphereIntersect(object[i], ray) > 0) 
             return true;
-        }
     }
     return false;
 }
@@ -152,28 +147,29 @@ float4 Phong(float3 n, float3 l, float3 v, float shininess, float4 diffuseColor,
     return diff*diffuseColor + spec*specularColor;
 }
 
-float4 Shade(float3 i, float3 n, float3 v, int hitobj)
+float4 Shade(float3 pt, float3 n, float3 v, int hitId)
 {
-    float3 l = normalize(lightPosition - i);
+    float3 l = normalize(lightPosition - pt);
 
     // check if shadowed
     Ray shadowray;
-    shadowray.o = i;
+    shadowray.o = pt;
     shadowray.d = l;
-    bool shadowed = AnyHit(shadowray);
+    bool shadowed = anyHit(shadowray);
 
     // lighting
-    float4 diff = object[hitobj].color * object[hitobj].Kd;
-    if (hitobj==2) {
-        diff *= textures[0].Sample(smooth, i.xz);   // floor texture
+    float4 diff = object[hitId].color * object[hitId].Kd;
+    if (hitId==2) 
+    {
+        diff *= textures[0].Sample(smooth, pt.xz);   // floor texture
     }
-    float4 spec = lightColor * object[hitobj].Ks;
+    float4 spec = lightColor * object[hitId].Ks;
     float shadowFactor = 0.25 + 0.75*!shadowed; 
     
     return Phong(n, l, v, shininess, diff, spec) * shadowFactor;
 }
 
-void animate_scene(float time)
+void updateScene(float time)
 {
     lightPosition.x = cos(time)*10;
     lightPosition.z = sin(time)*10;
@@ -181,7 +177,7 @@ void animate_scene(float time)
 
 float4 main(float4 pos : SV_POSITION) : SV_TARGET
 {
-    animate_scene(time);
+    updateScene(time);
     
     // calculate eye ray
     float3 d;
@@ -196,26 +192,26 @@ float4 main(float4 pos : SV_POSITION) : SV_TARGET
     eyeray.d = normalize(eyeray.d);
 
     // find nearest hit
-    int hitobj;
-    bool hit;
-    float3 i = NearestHit(eyeray, hitobj, hit);
+    int hitId;
+    float3 pt = nearestHit(eyeray, hitId);
     float4 c = backgroundColor;
-    if (hit) {
+    if (hitId != -1) {
         // shade surface
-        float3 n = SphereNormal(object[hitobj], i);
-        c = Shade(i, n, eyeray.d, hitobj);
-#if 1
+        float3 n = calcSphereNormal(object[hitId], pt);
+        c = Shade(pt, n, eyeray.d, hitId);
+        
+#ifdef REFLECTION_ENABLED
         // shoot reflection ray
         // level 2 recursion
         float3 r = reflect(eyeray.d, n);
         Ray reflray;
-        reflray.o = i;
+        reflray.o = pt;
         reflray.d = r;
-        int hitobj2;
-        i = NearestHit(reflray, hitobj2, hit);
-        if (hit) {
-            n = SphereNormal(object[hitobj2], i);
-            c += Shade(i, n, reflray.d, hitobj2) * object[hitobj].Kr;
+        int hitId2;
+        pt = nearestHit(reflray, hitId2);
+        if (hitId2 != -1) {
+            n = calcSphereNormal(object[hitId2], pt);
+            c += Shade(pt, n, reflray.d, hitId2) * object[hitId].Kr;
         } else {
             c += backgroundColor;
         }
