@@ -10,8 +10,10 @@
 
 const char kAppName[] = "HlslShaderToy";
 const char kErrorBoxName[] = "Shader Compiling Error";
-const int kAppWidth = 800;
-const int kAppHeight = 600;
+// 640 X 480 is preferred by my notebook
+// TODO: make it an option
+const int kAppWidth = 640;
+const int kAppHeight = 480;
 const int kFileChangeDetectionMS = 1000;
 const float kBlackColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // red, green, blue, alpha
 

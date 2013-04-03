@@ -39,7 +39,7 @@ cbuffer CBOneFrame : register( b0 )
 {
     float2     resolution;     // viewport resolution (in pixels)
     float      time;           // shader playback time (in seconds)
-    float      pad;            // padding
+    float      aspect;         // cached aspect of viewport"
     float4     mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
     float4     date;           // (year, month, day, time in seconds)
 };

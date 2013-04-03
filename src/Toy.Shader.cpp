@@ -76,7 +76,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
         "{\n"
         "    float2     resolution;     // viewport resolution (in pixels)\n"
         "    float      time;           // shader playback time (in seconds)\n"
-        "    float      pad;            // padding\n"
+        "    float      aspect;         // cached aspect of viewport\n"
         "    float4     mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
         "    float4     date;           // (year, month, day, time in seconds)\n"
         "};\n"

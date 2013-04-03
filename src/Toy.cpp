@@ -14,7 +14,7 @@ struct CBOneFrame
 {
     XMFLOAT2    resolution;     // viewport resolution (in pixels)
     float       time;           // shader playback time (in seconds)
-    float       pad;            // padding
+    float       aspect;         // cached aspect of viewport
     XMFLOAT4    mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
     XMFLOAT4    date;           // (year, month, day, time in seconds)
 }g_cbOneFrame;
@@ -175,6 +175,7 @@ HRESULT SetupDevice()
 
     g_cbOneFrame.resolution.x = (float)width;
     g_cbOneFrame.resolution.y = (float)height;
+    g_cbOneFrame.aspect = (float)width / (float)height;
 
     UINT createDeviceFlags = 0;
 #ifdef _DEBUG

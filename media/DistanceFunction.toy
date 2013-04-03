@@ -1,0 +1,110 @@
+ // Created by inigo quilez - iq/2013
+// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+
+// A list of usefull distance function to simple primitives, and an example on how to 
+// do some interesting boolean operations, repetition and displacement.
+//
+// More info here: http://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
+
+float sdPlane( float3 p )
+{
+	return p.y;
+}
+
+float sdSphere( float3 p, float s )
+{
+    return length(p)-s;
+}
+
+float sdBox( float3 p, float3 b )
+{
+  float3 d = abs(p) - b;
+  return min(max(d.x,max(d.y,d.z)),0.0) +
+         length(max(d,0.0));
+}
+
+float2 opU( float2 d1, float2 d2 )
+{
+	return (d1.x<d2.x) ? d1 : d2;
+}
+
+//----------------------------------------------------------------------
+
+float2 map( in float3 pos )
+{
+    float2 res = float2( sdPlane(pos), 1.0);
+
+    res = opU(res,
+            float2( sdSphere(pos-float3( 0.0,1.0, 0.0), 0.25 ), 0.9 ) );
+#if 1
+    res = opU(res, 
+        float2(sdBox(pos-float3( 1.0,1.0, 1.0), float3(0.25,0.25,0.25) ), 1.5));
+#endif
+    return res;
+}
+
+// ray casting
+// ro : ray's origin
+// rd : ray's direction
+// maxd : max distance of ray
+// t : distance, used to modulate the color
+// m : custom material, will be converted to float3 in render()
+float2 castRay( in float3 ro, in float3 rd, in float maxd )
+{
+	float precis = 0.001;
+    float h=precis*2.0;
+    float t = 0.0;
+    float m = -1.0;
+    for( int i=0; i<60; i++ )
+    {
+        if( abs(h)<precis||t>maxd ) break;
+        t += h;
+	    float2 res = map( ro+rd*t );
+        h = res.x;
+	    m = res.y;
+    }
+
+    if( t>maxd ) m=-1.0;
+    return float2( t, m );
+}
+
+float3 render( in float3 ro, in float3 rd )
+{ 
+    float3 col = float3(0.0, 0.0, 0.0);
+    float2 res = castRay(ro,rd,40.0);
+    float t = res.x;
+	float m = res.y;
+    if( m>-0.5 )
+    {
+		col = float3(0.3, 0.3, 0.3) + 0.4*sin( float3(0.9,4.3,2.2)*(m-1.0) );
+	}
+
+	col *= exp( -0.01*t*t );
+
+	return float3( clamp(col,0.0,1.0) );
+}
+
+float4 main ( float4 pos : SV_Position ) : SV_Target
+{
+	float2 q = pos.xy/resolution;
+    float2 p = -1.0+2.0*q;
+	p.x *= aspect;
+    float2 mo = mouse.xy/resolution;
+
+	// camera	
+	float3 ro = float3( -0.5+3.2*cos(0.1*time + 6.0*mo.x), 2.0*mo.y, 0.5 + 3.2*sin(0.1*time + 6.0*mo.x) );
+	float3 ta = float3( -0.5, -0.4, 0.5 );
+	
+	// camera tx
+	float3 cw = normalize( ta-ro );
+	float3 cp = float3( 0.0, 1.0, 0.0 );
+	float3 cu = normalize( cross(cw,cp) );
+	float3 cv = normalize( cross(cu,cw) );
+	float3 rd = normalize( p.x*cu - p.y*cv + 1.5*cw );
+
+    float3 col = render( ro, rd );
+
+	col = sqrt( col );
+
+    return float4( col, 1.0 );
+}
