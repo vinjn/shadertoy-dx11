@@ -7,7 +7,7 @@ using std::vector;
 //--------------------------------------------------------------------------------------
 // Helper for compiling shaders with D3DX11
 //--------------------------------------------------------------------------------------
-inline HRESULT CompileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut )
+inline HRESULT compileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut )
 {
     HRESULT hr = S_OK;
 
@@ -35,7 +35,7 @@ inline HRESULT CompileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LP
     return S_OK;
 }
 
-HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut, std::string* pErrorStr /*= NULL*/ )
+HRESULT compileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut, std::string* pErrorStr /*= NULL*/ )
 {
     HRESULT hr = S_OK;
 
@@ -114,7 +114,7 @@ std::string getOpenFilePath( HWND hWnd, const std::string &initialPath, std::vec
         char extensionStr[10000];
         size_t offset = 0;
 
-        strcpy( extensionStr, "Supported Types" );
+        strcpy( extensionStr, "HlslShaderToy file (.toy)" );
         offset += strlen( extensionStr ) + 1;
         for( vector<string>::const_iterator strIt = extensions.begin(); strIt != extensions.end(); ++strIt ) {
             strcpy( extensionStr + offset, "*." );
@@ -175,4 +175,42 @@ std::string getAppPath()
     }
 
     return std::string( appPath );
+}
+
+#include <Urlmon.h>
+#pragma comment(lib, "Urlmon.lib")
+
+HRESULT downloadFromUrl( const std::string& url, const std::string& localPath)
+{
+    HRESULT res = ::URLDownloadToFile(NULL, url.c_str(), localPath.c_str(), 0, NULL);
+
+#define MSG_BOX_URL(msg) ::MessageBox(NULL, msg, "URLDownloadToFile", MB_OK)
+
+    if(res == S_OK) {
+        OutputDebugStringA("Ok\n");
+    } else if(res == E_OUTOFMEMORY) {
+        MSG_BOX_URL("Buffer length invalid, or insufficient memory");
+    } else if(res == INET_E_DOWNLOAD_FAILURE) {
+        MSG_BOX_URL("URL is invalid");
+    } else {
+        MSG_BOX_URL("Something wrong with the URL");
+    }
+
+#undef MSG_BOX_URL
+
+    return res;
+}
+
+std::string getTempFolder()
+{
+    DWORD result = ::GetTempPath( 0, "" );
+    if( ! result )
+        throw std::runtime_error("Could not get system temp path");
+
+    std::vector<char> tempPath(result + 1);
+    result = ::GetTempPath(static_cast<DWORD>(tempPath.size()), &tempPath[0]);
+    if( ( ! result ) || ( result >= tempPath.size() ) )
+        throw std::runtime_error("Could not get system temp path");
+
+    return std::string( tempPath.begin(), tempPath.begin() + static_cast<std::size_t>(result) );
 }

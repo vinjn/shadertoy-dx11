@@ -6,31 +6,42 @@
 #include <regex>
 #include "Toy.h"
 
+#if _MSC_VER < 1600
 namespace std
 {
     using namespace tr1;
 }
+#endif // _MSC_VER
 
-
-HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
+HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
 {
     HRESULT hr = S_OK;
 
+    // e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy -> HelloWorld.toy
+    std::string leafFleName;
+    {
+        char leafBuffer[MAX_PATH];
+        strcpy_s(leafBuffer, MAX_PATH, toyFileName.c_str());
+        PathStripPath(leafBuffer);
+        leafFleName = leafBuffer;
+    }
+
     std::stringstream ss;
-    ss << "Opening shader file: " << filename <<"\n";
+    ss << "Opening shader file: " << toyFileName <<"\n";
     OutputDebugStringA(ss.str().c_str());
 
-    g_lastModifyTime = getFileModifyTime(filename);
+    g_lastModifyTime = getFileModifyTime(toyFileName);
 
-    std::ifstream ifs(filename.c_str());
+    std::ifstream ifs(toyFileName.c_str());
     if (!ifs)
     {
         return D3D11_ERROR_FILE_NOT_FOUND;
     }
 
-    std::vector<std::string>    texturePaths;
-    const std::regex reComment(".*//\\s*(.*)");
+    std::vector<std::string> texturePaths;
+    const std::regex reComment("[^/]*//\\s*(.*)");
     // e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
+    // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png
 
     std::stringstream pixelShaderText;
     std::string oneline;
@@ -44,6 +55,20 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
             std::string possiblePath = sm.str(1);
             D3DX11_IMAGE_INFO imageInfo;
 
+            if (possiblePath.find("http://") == 0 || 
+                possiblePath.find("https://") == 0 ||
+                possiblePath.find("ftp://") == 0 )
+            {
+                std::string url = possiblePath;
+
+                std::stringstream tempLocalPath;
+                tempLocalPath << getTempFolder() << leafFleName << "_" << texturePaths.size() << ".tmp";
+                possiblePath = tempLocalPath.str();
+
+                // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png -> C:/temp/HelloWorld.toy_#.tmp
+                V_RETURN(downloadFromUrl(url, possiblePath));
+            }
+
             if (std::ifstream(possiblePath.c_str()))
             {
                 if (SUCCEEDED(D3DX11GetImageInfoFromFile(possiblePath.c_str(), NULL, &imageInfo, NULL)))
@@ -54,7 +79,6 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
                     OutputDebugStringA(ss.str().c_str());
                 }
             }
-
         }
     }
     ifs.close();
@@ -91,7 +115,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
 
     // output complete shader file
     {
-        std::ofstream completeShaderFile((filename+".hlsl").c_str());
+        std::ofstream completeShaderFile((toyFileName+".hlsl").c_str());
         if (completeShaderFile)
         {
             completeShaderFile << psText;
@@ -100,7 +124,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
 
     ID3DBlob* pPSBlob = NULL;
     std::string errorMsg;
-    hr = CompileShaderFromMemory( psText.c_str(), "main", "ps_4_0", &pPSBlob, &errorMsg );
+    hr = compileShaderFromMemory( psText.c_str(), "main", "ps_4_0", &pPSBlob, &errorMsg );
 
     // hack shader compiling error message
     if (FAILED(hr))
@@ -142,7 +166,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& filename)
     V_RETURN(g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader ));
 
     std::stringstream titleSS;
-    titleSS << filename << " - " << kAppName;
+    titleSS << toyFileName << " - " << kAppName;
     ::SetWindowText(g_hWnd, titleSS.str().c_str());
 
 #ifdef TEST_SHADER_REFLECTION

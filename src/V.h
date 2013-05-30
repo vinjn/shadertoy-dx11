@@ -36,10 +36,13 @@
 //--------------------------------------------------------------------------------------
 // Helper for compiling shaders with D3DX11
 //--------------------------------------------------------------------------------------
-HRESULT CompileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut );
+HRESULT compileShaderFromFile( LPCSTR szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut );
 
-HRESULT CompileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut, std::string* pErrorStr = NULL);
+HRESULT compileShaderFromMemory( LPCSTR szText, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut, std::string* pErrorStr = NULL);
 
 std::string getOpenFilePath( HWND hWnd, const std::string &initialPath, std::vector<std::string> extensions );
 std::string getAppPath();
 FILETIME getFileModifyTime(const std::string& filename);
+
+HRESULT downloadFromUrl( const std::string& url, const std::string& localPath);
+std::string getTempFolder();

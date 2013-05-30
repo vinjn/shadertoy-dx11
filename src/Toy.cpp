@@ -167,7 +167,7 @@ HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow )
 HRESULT SetupDevice()
 {
     RECT rc;
-    GetClientRect( g_hWnd, &rc );
+    ::GetClientRect( g_hWnd, &rc );
     UINT width = rc.right - rc.left;
     UINT height = rc.bottom - rc.top;
 
@@ -242,7 +242,7 @@ HRESULT SetupDevice()
 
     {
         ID3DBlob* pVSBlob = NULL;
-        V_RETURN(CompileShaderFromMemory( kVertexShaderCode.c_str(), "VS", "vs_4_0", &pVSBlob ));
+        V_RETURN(compileShaderFromMemory( kVertexShaderCode.c_str(), "VS", "vs_4_0", &pVSBlob ));
         V_RETURN(g_pd3dDevice->CreateVertexShader( pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), NULL, &g_pVertexShader ));
     }
 

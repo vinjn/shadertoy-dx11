@@ -10,7 +10,7 @@ Certainly it won't run in a browser since there is no WebD3D.
 
 The usage is quite straightforward:
 ```
-bin/HlslShaderToy.exe ../media/HelloWorld.toy
+./bin/HlslShaderToy.exe ./media/HelloWorld.toy
 ```
 
 Take HelloWorld.hlsl as an example, which does nothing except showing textures[0] aka "../media/photo_4.jpg" on screen.   
