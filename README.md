@@ -22,6 +22,7 @@ float4 main( float4 pos : SV_POSITION) : SV_Target
     return textures[0].Sample( smooth, input.tex );
 }
 ```
+![screenshot](/doc/helloworld.png "./bin/HlslShaderToy.exe ./media/HelloWorld.toy")
 
 If you have previous experience with Hlsl coding, then you must be wondering WTF is smooth and textures[0]!!!   
 And how is "../media/photo_4.jpg" working?

@@ -1,5 +1,5 @@
 // demonstrate the use of local image
-// ../media/photo_4.jpg
+// photo_4.jpg
  
 float4 main( float4 pos : SV_POSITION) : SV_Target
 {

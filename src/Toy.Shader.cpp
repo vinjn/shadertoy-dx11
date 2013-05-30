@@ -17,18 +17,28 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
 {
     HRESULT hr = S_OK;
 
-    // e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy -> HelloWorld.toy
-    std::string leafFleName;
+    // "e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy" -> "HelloWorld.toy"
+    std::string toyLeafName;
     {
-        char leafBuffer[MAX_PATH];
-        strcpy_s(leafBuffer, MAX_PATH, toyFileName.c_str());
-        PathStripPath(leafBuffer);
-        leafFleName = leafBuffer;
+        char buffer[MAX_PATH];
+        strcpy_s(buffer, MAX_PATH, toyFileName.c_str());
+        ::PathStripPath(buffer);
+        toyLeafName = buffer;
+    }
+
+    // "e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy" -> "e:\__svn_pool\HlslShaderToy\media\"
+    std::string toyFolderName;
+    {
+        char buffer[MAX_PATH];
+        strcpy_s(buffer, MAX_PATH, toyFileName.c_str());
+        ::PathRemoveFileSpec(buffer);
+        ::PathAddBackslash(buffer);
+        toyFolderName = buffer;
     }
 
     std::stringstream ss;
     ss << "Opening shader file: " << toyFileName <<"\n";
-    OutputDebugStringA(ss.str().c_str());
+    ::OutputDebugStringA(ss.str().c_str());
 
     g_lastModifyTime = getFileModifyTime(toyFileName);
 
@@ -62,11 +72,16 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
                 std::string url = possiblePath;
 
                 std::stringstream tempLocalPath;
-                tempLocalPath << getTempFolder() << leafFleName << "_" << texturePaths.size() << ".tmp";
+                tempLocalPath << getTempFolder() << toyLeafName << "_" << texturePaths.size() << ".tmp";
                 possiblePath = tempLocalPath.str();
 
                 // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png -> C:/temp/HelloWorld.toy_#.tmp
                 V_RETURN(downloadFromUrl(url, possiblePath));
+            }
+
+            if (::PathIsRelative(possiblePath.c_str()))
+            {
+                possiblePath = toyFolderName + possiblePath;
             }
 
             if (std::ifstream(possiblePath.c_str()))

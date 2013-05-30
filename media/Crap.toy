@@ -1,4 +1,4 @@
-// ..\\media\\ducky.png
+// ducky.png
 
 float mod289(float x)
 {
