@@ -75,7 +75,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions=""
-				AdditionalDependencies="d3d11.lib d3dcompiler.lib d3dx11d.lib d3dx9d.lib dxerr.lib dxguid.lib winmm.lib comctl32.lib "
+				AdditionalDependencies="d3d11.lib d3dx11d.lib dxerr.lib "
 				OutputFile="..\bin\$(ProjectName)_d.exe"
 				LinkIncremental="2"
 				GenerateManifest="true"
@@ -166,7 +166,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions=""
-				AdditionalDependencies="d3d11.lib d3dcompiler.lib d3dx11.lib dxerr.lib dxguid.lib winmm.lib comctl32.lib "
+				AdditionalDependencies="d3d11.lib d3dx11.lib dxerr.lib "
 				OutputFile="..\bin\$(ProjectName).exe"
 				LinkIncremental="1"
 				GenerateManifest="true"
