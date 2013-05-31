@@ -46,3 +46,6 @@ FILETIME getFileModifyTime(const std::string& filename);
 
 HRESULT downloadFromUrl( const std::string& url, const std::string& localPath);
 std::string getTempFolder();
+
+// https://github.com/vinjn/HlslShaderToy/issues/10 on hard drive
+std::string extractToyFromGithubIssuse( const std::string& localHtmlFile );

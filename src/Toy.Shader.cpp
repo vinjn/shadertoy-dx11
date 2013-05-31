@@ -21,20 +21,28 @@ namespace
             possiblePath.find("https://") == 0 ||
             possiblePath.find("ftp://") == 0;
     }
+
+    bool isGithubIssuePath( const std::string &possiblePath ) 
+    {
+        return possiblePath.find("/issues/") != std::string::npos;
+    }
+
+    std::string getLeafName( const std::string &toyFullPath ) 
+    {
+        char buffer[MAX_PATH];
+        strcpy_s(buffer, MAX_PATH, toyFullPath.c_str());
+        ::PathStripPath(buffer);
+        return buffer;
+    }
 }
+
 
 HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 {
     HRESULT hr = S_OK;
 
     // "e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy" -> "HelloWorld.toy"
-    std::string toyLeafName;
-    {
-        char buffer[MAX_PATH];
-        strcpy_s(buffer, MAX_PATH, toyFullPath.c_str());
-        ::PathStripPath(buffer);
-        toyLeafName = buffer;
-    }
+    std::string toyLeafName = getLeafName(toyFullPath);
 
     // "e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy" -> "e:\__svn_pool\HlslShaderToy\media\"
     // for url, this value would be ""
@@ -52,29 +60,37 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     }
 
     std::stringstream ss;
-    ss << "Opening shader file: " << toyFullPath <<"\n";
+    ss << "Opening shader file: " << toyFullPath << std::endl;
     ::OutputDebugStringA(ss.str().c_str());
 
     if (isUrlPath(toyFullPath))
     {
-        // https://raw.github.com/vinjn/HlslShaderToy/master/samples/HelloWorldUrl.toy -> C:/temp/network_HelloWorldUrl.toy
+        // https://raw.github.com/vinjn/HlslShaderToy/master/samples/HelloWorldUrl.toy -> C:/temp/network_HelloWorldUrl.toy.toy
         std::string url = toyFullPath;
         std::stringstream ss;
-        ss << getTempFolder() << "network_" << toyLeafName;
+        ss << getTempFolder() << "network_" << toyLeafName << ".toy";
 
         std::string localToyPath = ss.str();
 
         V_RETURN(downloadFromUrl(url, localToyPath));
+
+        if (isGithubIssuePath(url))
+        {
+            std::ofstream ofs(localToyPath.c_str());
+            std::string toyContent = extractToyFromGithubIssuse(localToyPath);
+            ofs << toyContent;
+        }
+
         return createShaderAndTexturesFromFile(localToyPath);
     }
-
-    g_lastModifyTime = getFileModifyTime(toyFullPath);
 
     std::ifstream ifs(toyFullPath.c_str());
     if (!ifs)
     {
         return D3D11_ERROR_FILE_NOT_FOUND;
     }
+
+    g_lastModifyTime = getFileModifyTime(toyFullPath);
 
     std::vector<std::string> texturePaths;
     const std::regex reComment("[^/]*//\\s*(.*)");
@@ -96,10 +112,11 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
             if (isUrlPath(possiblePath) )
             {
                 // change possiblePath
-                // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png -> C:/temp/HelloWorld.toy_#.tmp
+                // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png -> C:/temp/HelloWorld.toy_ducky.png
                 std::string url = possiblePath;
+                std::string imageLeafName = getLeafName(url);
                 std::stringstream ss;
-                ss << getTempFolder() << toyLeafName << "_" << texturePaths.size() << ".tmp";
+                ss << getTempFolder() << toyLeafName << "_" << imageLeafName;
 
                 possiblePath = ss.str();
 

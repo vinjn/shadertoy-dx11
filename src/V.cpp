@@ -217,3 +217,16 @@ std::string getTempFolder()
 
     return std::string( tempPath.begin(), tempPath.begin() + static_cast<std::size_t>(result) );
 }
+
+std::string extractToyFromGithubIssuse( const std::string& localHtmlFile )
+{
+    return 
+        "// demonstrate the use of url image\n"
+        "// https://f.cloud.github.com/assets/558657/590903/5b36a0e0-c9f3-11e2-93f0-743a1469c0d9.png\n"
+        " \n"
+        "float4 main( float4 pos : SV_POSITION) : SV_Target\n"
+        "{\n"
+        "    return textures[0].Sample( smooth, pos.xy / resolution );\n"
+        "}\n"
+        ;
+}
