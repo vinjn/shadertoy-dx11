@@ -1,5 +1,5 @@
 // demonstrate the use of url image
-// https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png
+// https://raw.github.com/vinjn/HlslShaderToy/master/samples/ducky.png
  
 float4 main( float4 pos : SV_POSITION) : SV_Target
 {
