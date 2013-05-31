@@ -23,6 +23,7 @@ extern  HWND g_hWnd;
 extern CComPtr<ID3D11PixelShader>               g_pPixelShader;
 extern std::vector<ID3D11ShaderResourceView*>   g_pTextureSRVs;      // Texture2D textures[];
 
+extern std::string                              g_toyFileName;
 extern FILETIME                                 g_lastModifyTime;
 extern bool                                     g_failToCompileShader;
 
@@ -31,9 +32,9 @@ extern bool                                     g_failToCompileShader;
 //--------------------------------------------------------------------------------------
 HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow );
 void    DestroyWindow();
-HRESULT SetupDevice();
+HRESULT SetupDevice( const std::string& filename );
 void    DestroyDevice();
 LRESULT CALLBACK    WndProc( HWND, UINT, WPARAM, LPARAM );
 void Render();
 
-HRESULT updateShaderAndTexturesFromFile(const std::string& filename);
+HRESULT createShaderAndTexturesFromFile(const std::string& filename);

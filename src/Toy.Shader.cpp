@@ -13,7 +13,17 @@ namespace std
 }
 #endif // _MSC_VER
 
-HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
+namespace
+{
+    bool isUrlPath( const std::string &possiblePath ) 
+    {
+        return possiblePath.find("http://") == 0 || 
+            possiblePath.find("https://") == 0 ||
+            possiblePath.find("ftp://") == 0;
+    }
+}
+
+HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 {
     HRESULT hr = S_OK;
 
@@ -21,28 +31,46 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
     std::string toyLeafName;
     {
         char buffer[MAX_PATH];
-        strcpy_s(buffer, MAX_PATH, toyFileName.c_str());
+        strcpy_s(buffer, MAX_PATH, toyFullPath.c_str());
         ::PathStripPath(buffer);
         toyLeafName = buffer;
     }
 
     // "e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy" -> "e:\__svn_pool\HlslShaderToy\media\"
+    // for url, this value would be ""
     std::string toyFolderName;
     {
-        char buffer[MAX_PATH];
-        strcpy_s(buffer, MAX_PATH, toyFileName.c_str());
-        ::PathRemoveFileSpec(buffer);
-        ::PathAddBackslash(buffer);
-        toyFolderName = buffer;
+        std::string::size_type pos = toyFullPath.rfind(toyLeafName);
+        if (pos != std::string::npos)
+        {
+            toyFolderName = toyFullPath.substr(0, pos);
+        }
+        else
+        {
+            ::MessageBox(g_hWnd, "Invalid filename.", kAppName, MB_OK);
+        }
     }
 
     std::stringstream ss;
-    ss << "Opening shader file: " << toyFileName <<"\n";
+    ss << "Opening shader file: " << toyFullPath <<"\n";
     ::OutputDebugStringA(ss.str().c_str());
 
-    g_lastModifyTime = getFileModifyTime(toyFileName);
+    if (isUrlPath(toyFullPath))
+    {
+        // https://raw.github.com/vinjn/HlslShaderToy/master/samples/HelloWorldUrl.toy -> C:/temp/network_HelloWorldUrl.toy
+        std::string url = toyFullPath;
+        std::stringstream ss;
+        ss << getTempFolder() << "network_" << toyLeafName;
 
-    std::ifstream ifs(toyFileName.c_str());
+        std::string localToyPath = ss.str();
+
+        V_RETURN(downloadFromUrl(url, localToyPath));
+        return createShaderAndTexturesFromFile(localToyPath);
+    }
+
+    g_lastModifyTime = getFileModifyTime(toyFullPath);
+
+    std::ifstream ifs(toyFullPath.c_str());
     if (!ifs)
     {
         return D3D11_ERROR_FILE_NOT_FOUND;
@@ -65,22 +93,22 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
             std::string possiblePath = sm.str(1);
             D3DX11_IMAGE_INFO imageInfo;
 
-            if (possiblePath.find("http://") == 0 || 
-                possiblePath.find("https://") == 0 ||
-                possiblePath.find("ftp://") == 0 )
+            if (isUrlPath(possiblePath) )
             {
-                std::string url = possiblePath;
-
-                std::stringstream tempLocalPath;
-                tempLocalPath << getTempFolder() << toyLeafName << "_" << texturePaths.size() << ".tmp";
-                possiblePath = tempLocalPath.str();
-
+                // change possiblePath
                 // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png -> C:/temp/HelloWorld.toy_#.tmp
+                std::string url = possiblePath;
+                std::stringstream ss;
+                ss << getTempFolder() << toyLeafName << "_" << texturePaths.size() << ".tmp";
+
+                possiblePath = ss.str();
+
                 V_RETURN(downloadFromUrl(url, possiblePath));
             }
 
             if (::PathIsRelative(possiblePath.c_str()))
             {
+                // change possiblePath to absolute path
                 possiblePath = toyFolderName + possiblePath;
             }
 
@@ -130,7 +158,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
 
     // output complete shader file
     {
-        std::ofstream completeShaderFile((toyFileName+".hlsl").c_str());
+        std::ofstream completeShaderFile((toyFullPath+".hlsl").c_str());
         if (completeShaderFile)
         {
             completeShaderFile << psText;
@@ -181,7 +209,7 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
     V_RETURN(g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader ));
 
     std::stringstream titleSS;
-    titleSS << toyFileName << " - " << kAppName;
+    titleSS << toyFullPath << " - " << kAppName;
     ::SetWindowText(g_hWnd, titleSS.str().c_str());
 
 #ifdef TEST_SHADER_REFLECTION
@@ -211,6 +239,8 @@ HRESULT updateShaderAndTexturesFromFile(const std::string& toyFileName)
     }
 
     ::Beep( rand()%100+200, 300 );
+
+    g_toyFileName = toyFullPath;
 
     return hr;
 }

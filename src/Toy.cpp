@@ -52,7 +52,7 @@ CComPtr<ID3D11SamplerState>             g_pSamplerMirror;
 
 // Setup the viewport
 D3D11_VIEWPORT g_viewport;
-std::string                             g_pixelShaderFileName;
+std::string                             g_toyFileName;
 FILETIME                                g_lastModifyTime;
 bool                                    g_failToCompileShader = false;
 
@@ -73,20 +73,22 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     UNREFERENCED_PARAMETER( hPrevInstance );
     UNREFERENCED_PARAMETER( lpCmdLine );
 
+    std::string toyFileName;
+
     if (strlen(lpCmdLine) == 0)
     {
         vector<string> extensions;
         extensions.push_back("toy");
-        g_pixelShaderFileName = getOpenFilePath(g_hWnd, getAppPath(), extensions);
+        toyFileName = getOpenFilePath(g_hWnd, getAppPath(), extensions);
     }
     else
     {
-        g_pixelShaderFileName = lpCmdLine;
-        if (g_pixelShaderFileName[0] == '"')
-            g_pixelShaderFileName = g_pixelShaderFileName.substr(1, g_pixelShaderFileName.length()-2);
+        toyFileName = lpCmdLine;
+        if (toyFileName[0] == '"')
+            toyFileName = toyFileName.substr(1, toyFileName.length()-2);
     }
 
-    if (g_pixelShaderFileName.length() == 0)
+    if (toyFileName.empty())
     {
         MessageBox(NULL, "Usage: HlslShaderToy.exe /path/to/pixel_shader.toy", kAppName, MB_OK);
         return -1;
@@ -97,7 +99,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
     ::SetTimer(g_hWnd, 0, kFileChangeDetectionMS, NULL);
 
-    if( FAILED( SetupDevice() ) )
+    if( FAILED( SetupDevice(toyFileName) ) )
     {
         DestroyDevice();
         return 0;
@@ -164,7 +166,7 @@ HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow )
 //--------------------------------------------------------------------------------------
 // Create Direct3D device and swap chain
 //--------------------------------------------------------------------------------------
-HRESULT SetupDevice()
+HRESULT SetupDevice( const std::string& filename )
 {
     RECT rc;
     ::GetClientRect( g_hWnd, &rc );
@@ -251,7 +253,7 @@ HRESULT SetupDevice()
         V_RETURN(g_pd3dDevice->CreateBuffer( &desc, NULL, &g_pCBOneFrame ));
     }
 
-    V(updateShaderAndTexturesFromFile(g_pixelShaderFileName));
+    V(createShaderAndTexturesFromFile(filename));
 
     CD3D11_SAMPLER_DESC sampDesc(D3D11_DEFAULT);
     sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -301,25 +303,26 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
     int mouseX = GET_X_LPARAM(lParam);
     int mouseY = GET_Y_LPARAM(lParam);
 
-    bool isShaderDirty = false;
+    bool isShaderModified = false;
+    std::string newToyFileName = g_toyFileName;
 
     switch( message )
     {
     case WM_TIMER:
         {
-            FILETIME ftime = getFileModifyTime(g_pixelShaderFileName);
+            FILETIME ftime = getFileModifyTime(g_toyFileName);
             if (ftime.dwLowDateTime != g_lastModifyTime.dwLowDateTime || ftime.dwHighDateTime != g_lastModifyTime.dwHighDateTime)
             {
                 ftime = g_lastModifyTime;
                 if (g_failToCompileShader)
                 {
-                    // close the previous MessageBox
+                    // HACK: close the previous MessageBox
                     if (HWND hBox = ::FindWindow(NULL, kErrorBoxName))
                     {
                         ::SendMessage(hBox, WM_CLOSE, 0, 0);
                     }
                 }
-                isShaderDirty = true;
+                isShaderModified = true;
             }
         }break;
     case WM_DROPFILES: 
@@ -333,13 +336,13 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
                 ::DragQueryFileA( dropH, i, fileName, 8192 );
                 if (strstr(fileName, ".toy"))
                 {
-                    g_pixelShaderFileName = fileName;
-                    isShaderDirty = true;
+                    newToyFileName = fileName;
+                    isShaderModified = true;
                     break;
                 }
             }
 
-            if (!isShaderDirty)
+            if (!isShaderModified)
             {
                 ::MessageBox(g_hWnd, "Please drag a shader file (.toy).", kAppName, MB_OK);
             }
@@ -373,9 +376,9 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         return DefWindowProc( hWnd, message, wParam, lParam );
     }
 
-    if (isShaderDirty)
+    if (isShaderModified)
     {
-        updateShaderAndTexturesFromFile(g_pixelShaderFileName);
+        createShaderAndTexturesFromFile(newToyFileName);
         for (int i=0;i<2;i++)
         {
             g_pContext->ClearRenderTargetView( PingPong::RTVs[i], kBlackColor );

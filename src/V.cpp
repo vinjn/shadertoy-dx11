@@ -1,5 +1,6 @@
 #include "V.h"
 #include <d3dcompiler.h>
+#include <sstream>
 
 using std::string;
 using std::vector;
@@ -187,13 +188,15 @@ HRESULT downloadFromUrl( const std::string& url, const std::string& localPath)
 #define MSG_BOX_URL(msg) ::MessageBox(NULL, msg, "URLDownloadToFile", MB_OK)
 
     if(res == S_OK) {
-        OutputDebugStringA("Ok\n");
+        //OutputDebugStringA("Ok\n");
     } else if(res == E_OUTOFMEMORY) {
         MSG_BOX_URL("Buffer length invalid, or insufficient memory");
     } else if(res == INET_E_DOWNLOAD_FAILURE) {
-        MSG_BOX_URL("URL is invalid");
+        MSG_BOX_URL("INET_E_DOWNLOAD_FAILURE");
     } else {
-        MSG_BOX_URL("Something wrong with the URL");
+        std::stringstream ss;
+        ss << "Something wrong with URL:\n" << url;
+        MSG_BOX_URL(ss.str().c_str());
     }
 
 #undef MSG_BOX_URL
