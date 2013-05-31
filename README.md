@@ -10,7 +10,7 @@ Certainly it won't run in a browser since there is no WebD3D.
 
 The usage is quite straightforward:
 ```
-./bin/HlslShaderToy.exe ./media/HelloWorld.toy
+./bin/HlslShaderToy.exe ./samples/HelloWorld.toy
 ```
 
 Take HelloWorld.hlsl as an example, which does nothing except showing textures[0] aka "photo_4.jpg" on screen.   
@@ -22,7 +22,7 @@ float4 main( float4 pos : SV_POSITION) : SV_Target
     return textures[0].Sample( smooth, pos.xy / resolution );
 }
 ```
-![screenshot](/doc/helloworld.png "./bin/HlslShaderToy.exe ./media/HelloWorld.toy")
+![screenshot](/doc/helloworld.png "./bin/HlslShaderToy.exe ./samples/HelloWorld.toy")
 
 If you have previous experience with Hlsl coding, then you must be wondering WTF is ***smooth*** and ***textures[0]***   
 And how is ***photo_4.jpg*** mapping to graphics pipeline?
