@@ -91,6 +91,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     }
 
     g_lastModifyTime = getFileModifyTime(toyFullPath);
+    g_toyFileName = toyFullPath;
 
     std::vector<std::string> texturePaths;
     const std::regex reComment("[^/]*//\\s*(.*)");
@@ -174,6 +175,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     std::string psText = pixelShaderHeader + pixelShaderText.str();
 
     // output complete shader file
+    if (g_generateHlsl)
     {
         std::ofstream completeShaderFile((toyFullPath+".hlsl").c_str());
         if (completeShaderFile)
@@ -256,8 +258,6 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     }
 
     ::Beep( rand()%100+200, 300 );
-
-    g_toyFileName = toyFullPath;
 
     return hr;
 }

@@ -20,25 +20,80 @@ Comments:
 	sgreen@nvidia.com 12/2003
 
 ***************************************************************/
-// Checkered.jpg
 
-static float foclen = 500.0;
+float Script : STANDARDSGLOBAL
+<
+	string UIWidget = "none";
+	string ScriptClass = "scene";
+	string ScriptOrder = "standard";
+	string ScriptOutput = "color";
+	string Script = "Technique=PS30;";
+> = 0.8;
 
-static float3 lightPosition = { 10.0, 10.0, -10.0 };
+float4x4 view : ViewInverse;
+float time : Time < string UIWidget = "none"; >;
 
-static float4 lightColor = { 1.0, 1.0, 1.0, 1.0 };
+float2 viewport : VIEWPORTPIXELSIZE < string UIWidget = "none">;
 
-static float shininess = 40.0;
+float foclen <
+	string UIWidget="Slider";
+	string UIName="Focal Length";
+	float UIMin = 1.0f;
+	float UIMax = 5000.0f;
+	float UIStep = 10.0f;
+> = 500.0;
 
-static float4 backgroundColor = { 0.1, 0.1, 0.1, 1.0 };
+float3 lightPosition : POSITION
+<
+	string UIName="Light Position";
+	string Object = "PointLight";
+	string Space = "World";
+> = { 10.0, 10.0, -10.0 };
 
-static float4x4 view = 
-{ 
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 1000,
-    0, 0, 0, 1,
+float4 lightColor : DIFFUSE
+<
+    string UIName = "Light Color";
+    string Object = "PointLight";
+> = { 1.0, 1.0, 1.0, 1.0 };
+
+float shininess
+<
+	string UIWidget = "slider";
+	float UIMin = 1.0f;
+	float UIStep = 1.0f;
+	float UIMax = 100.0f;
+> = 40.0;
+
+float4 backgroundColor : DIFFUSE
+<
+	string UIName="Background Color";
+	string UIWidget = "color";
+> = { 0.0, 0.0, 0.0, 1.0 };
+
+// build a 2D texture with a Whitted-style checkerboard pattern!
+texture checkTexture
+<
+    string texturetype = "2D";
+	string function = "GenerateCheck";
+	int width = 16, height = 16;
+>;
+
+sampler2D checkSampler = sampler_state
+{
+	Texture = <checkTexture>;
+	MinFilter = Linear;
+	MagFilter = Linear;
+	MipFilter = Linear;
 };
+
+float4 GenerateCheck(float2 p : POSITION) : COLOR
+{
+	float4 c1 = { 1.0, 0.0, 0.0, 1.0 };
+	float4 c2 = { 1.0, 1.0, 0.0, 1.0 };
+	float2 s = step(p, 0.5);
+	float check = (s.x || s.y) && !(s.x && s.y);	// no XOR in HLSL!
+	return lerp(c1, c2, check);
+}
 
 struct Ray {
 	float3 o;	// origin
@@ -55,7 +110,6 @@ struct Sphere {
 // Object database stored in constants
 #define SQR(N) (N*N)
 #define NOBJECTS 3
-
 static Sphere object[NOBJECTS] = {
 	{
 		0.0, 0.0, 0.0,
@@ -72,11 +126,12 @@ static Sphere object[NOBJECTS] = {
 	{
 		0.0, -101.0, 0.0,
 		SQR(100.0),
+//		0.0, 0.0, 1.0, 1.0
 		1.0, 1.0, 1.0, 1.0,
 		1.0, 1.0, 0.5,
 	}
 };
-static float eps = 0.001;	// error epsilon
+const float eps = 0.001;	// error epsilon
 
 float SphereIntersect(Sphere s, Ray ray, out bool hit)
 {
@@ -132,14 +187,16 @@ float3 NearestHit(Ray ray, out int hitobj, out bool anyhit)
 // test for any hit (for shadow rays)
 bool AnyHit(Ray ray)
 {
+	bool anyhit = false;
 	for(int i=0; i<NOBJECTS; i++) {
 		bool hit;
 		float t = SphereIntersect(object[i], ray, hit);
 		if (hit) {
-			return true;
+//			return true;
+			anyhit = true;
 		}
 	}
-	return false;
+	return anyhit;
 }
 
 // Phong lighting model
@@ -165,7 +222,9 @@ float4 Shade(float3 i, float3 n, float3 v, int hitobj)
 	// lighting
 	float4 diff = object[hitobj].color * object[hitobj].Kd;
 	if (hitobj==2) {
-		diff *= textures[0].Sample(smooth, i.xz);	// floor texture
+//		diff *= tex2D(checkSampler, i.xz);	// floor texture
+		// use tex2Dlod to work around D3D restriction that doesn't allow tex2D inside IF/ENDIF:
+		diff *= tex2Dlod(checkSampler, float4(i.xz, 0.0, 0.0));	// floor texture
 	}
 	float4 spec = lightColor * object[hitobj].Ks;
 	float shadowFactor = 0.25 + 0.75*!shadowed;	
@@ -173,25 +232,37 @@ float4 Shade(float3 i, float3 n, float3 v, int hitobj)
 	return Phong(n, l, v, shininess, diff, spec) * shadowFactor;
 }
 
-void animate_scene(float time)
+// Vertex shader
+struct Vertex {
+    float4 pos		: POSITION;
+    float4 texcoord	: TEXCOORD0;
+};
+
+Vertex RayTraceVS(Vertex v)
 {
-    lightPosition.x = cos(time)*10;
-    lightPosition.z = sin(time)*10;
+    return v;
 }
 
-float4 main(float4 pos : SV_POSITION) : SV_TARGET
+void animate_scene(float time)
+{
+	object[1].centre.x = sin(time)*1.5;
+	object[1].centre.z = cos(time)*1.5;
+}
+
+// Pixel shader
+float4 RayTracePS(Vertex IN) : COLOR
 {
 	animate_scene(time);
 	
 	// calculate eye ray
 	float3 d;
-	d.xy = pos.xy * 2.0 - resolution;
+	d.xy = ((IN.texcoord*2.0)-1.0) * viewport;
 	d.y = -d.y;	// flip y axis
 	d.z = foclen;
 
 	// transform by view matrix
 	Ray eyeray;
-	eyeray.o = mul(float4(0, 0, -5, 1), view).xyz;
+	eyeray.o = mul(float4(0, 0, 0, 1), view);
 	eyeray.d = mul(d, (float3x3) view);
 	eyeray.d = normalize(eyeray.d);
 
@@ -204,9 +275,9 @@ float4 main(float4 pos : SV_POSITION) : SV_TARGET
 		// shade surface
 		float3 n = SphereNormal(object[hitobj], i);
 		c = Shade(i, n, eyeray.d, hitobj);
+	
 #if 1
 		// shoot reflection ray
-        // level 2 recursion
 		float3 r = reflect(eyeray.d, n);
 		Ray reflray;
 		reflray.o = i;
@@ -225,3 +296,24 @@ float4 main(float4 pos : SV_POSITION) : SV_TARGET
 	return c;
 }
 
+technique PS30
+<
+	string Script = "ScriptSignature=color;"
+	        		"ScriptExternal=;"
+	        		"Pass=p0;";
+>
+{
+
+    pass p0
+    <
+    	string Script = "RenderColorTarget=;"
+	         			"RenderDepthStencilTarget=;"
+    					"Clear=Color;"
+						"Clear=Depth;"    					
+	        			"Draw=Buffer;";
+    >
+    {
+		VertexShader = compile vs_3_0 RayTraceVS();
+		PixelShader = compile ps_3_0 RayTracePS();
+    }
+}

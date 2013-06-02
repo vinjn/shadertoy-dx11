@@ -55,6 +55,7 @@ D3D11_VIEWPORT g_viewport;
 std::string                             g_toyFileName;
 FILETIME                                g_lastModifyTime;
 bool                                    g_failToCompileShader = false;
+bool                                    g_generateHlsl = false;
 
 const std::string kVertexShaderCode =
 "float4 VS(uint id : SV_VertexID) : SV_POSITION\n"

@@ -26,6 +26,7 @@ extern std::vector<ID3D11ShaderResourceView*>   g_pTextureSRVs;      // Texture2
 extern std::string                              g_toyFileName;
 extern FILETIME                                 g_lastModifyTime;
 extern bool                                     g_failToCompileShader;
+extern bool                                     g_generateHlsl;
 
 //--------------------------------------------------------------------------------------
 // Forward declarations
