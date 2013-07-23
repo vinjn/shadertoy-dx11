@@ -489,36 +489,36 @@
 			Name="resource"
 			>
 			<File
-				RelativePath=".\HlslShaderToy.rc"
+				RelativePath="..\src\HlslShaderToy.rc"
 				>
 			</File>
 			<File
-				RelativePath=".\icon.ico"
+				RelativePath="..\src\icon.ico"
 				>
 			</File>
 			<File
-				RelativePath=".\resource.h"
+				RelativePath="..\src\resource.h"
 				>
 			</File>
 		</Filter>
 		<File
-			RelativePath=".\Toy.cpp"
+			RelativePath="..\src\Toy.cpp"
 			>
 		</File>
 		<File
-			RelativePath=".\Toy.h"
+			RelativePath="..\src\Toy.h"
 			>
 		</File>
 		<File
-			RelativePath=".\Toy.Shader.cpp"
+			RelativePath="..\src\Toy.Shader.cpp"
 			>
 		</File>
 		<File
-			RelativePath=".\V.cpp"
+			RelativePath="..\src\V.cpp"
 			>
 		</File>
 		<File
-			RelativePath=".\V.h"
+			RelativePath="..\src\V.h"
 			>
 		</File>
 	</Files>
