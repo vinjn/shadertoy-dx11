@@ -36,7 +36,7 @@ namespace
     }
 }
 
-
+// TODO: tear down to small functions
 HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 {
     HRESULT hr = S_OK;
@@ -94,21 +94,38 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     gToyFileName = toyFullPath;
 
     std::vector<std::string> texturePaths;
-    const std::regex reComment("[^/]*//\\s*(.*)");
+    const std::regex reResourceLocations("[^/]*//\\s*(.*)");
     // e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
     // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png
 
-    std::stringstream pixelShaderText;
+    gIsCameraDevice = false;
+
+    std::stringstream toyShaderText;
     std::string oneline;
     while (std::getline(ifs, oneline))
     {
-        pixelShaderText << oneline << "\n";
+        toyShaderText << oneline << "\n";
 
         std::smatch sm;
-        if (std::regex_match (oneline, sm, reComment))
+        if (std::regex_match(oneline, sm, reResourceLocations))
         {
             std::string possiblePath = sm.str(1);
-            D3DX11_IMAGE_INFO imageInfo;
+
+            if (possiblePath == "camera")
+            {
+                gIsCameraDevice = true;
+                if (!gVideoInput.setupDevice(kDeviceId))
+                {
+                    // fillFakeData(gCameraFrameData);
+                    possiblePath = "fake camera device";
+                }  
+                texturePaths.push_back(possiblePath);
+                std::stringstream ss;
+                ss << "Loading image from: " << possiblePath <<"\n";
+                OutputDebugStringA(ss.str().c_str());
+
+                continue;
+            }
 
             if (isUrlPath(possiblePath) )
             {
@@ -123,8 +140,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 
                 V_RETURN(downloadFromUrl(url, possiblePath));
             }
-
-            if (::PathIsRelative(possiblePath.c_str()))
+            else if (::PathIsRelative(possiblePath.c_str()))
             {
                 // change possiblePath to absolute path
                 possiblePath = toyFolderName + possiblePath;
@@ -132,6 +148,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 
             if (std::ifstream(possiblePath.c_str()))
             {
+                D3DX11_IMAGE_INFO imageInfo;
                 if (SUCCEEDED(D3DX11GetImageInfoFromFile(possiblePath.c_str(), NULL, &imageInfo, NULL)))
                 {
                     texturePaths.push_back(possiblePath);
@@ -144,43 +161,46 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     }
     ifs.close();
 
-    std::stringstream pixelShaderHeaderSS;
-    if (!texturePaths.empty())
+    std::string pixelShaderHeader;
     {
-        pixelShaderHeaderSS << "Texture2D textures[" << texturePaths.size() <<"] : register( t0 );\n";
+        std::stringstream pixelShaderHeaderSS;
+        if (!texturePaths.empty())
+        {
+            pixelShaderHeaderSS << "Texture2D textures[" << texturePaths.size() <<"] : register( t0 );\n";
+        }
+
+        pixelShaderHeaderSS <<        
+            "Texture2D backbuffer : register( t1 );\n"
+            "\n"
+            "SamplerState smooth : register( s0 );\n"
+            "SamplerState blocky : register( s1 );\n"
+            "SamplerState mirror : register( s2 );\n"
+            "\n"
+            "cbuffer CBOneFrame : register( b0 )\n"
+            "{\n"
+            "    float2     resolution;     // viewport resolution (in pixels)\n"
+            "    float      time;           // shader playback time (in seconds)\n"
+            "    float      aspect;         // cached aspect of viewport\n"
+            "    float4     mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
+            "    float4     date;           // (year, month, day, time in seconds)\n"
+            "};\n"
+            "\n"
+            ;
+
+        pixelShaderHeader = pixelShaderHeaderSS.str();
     }
-
-    pixelShaderHeaderSS <<
-        "Texture2D backbuffer : register( t1 );\n"
-        "\n"
-        "SamplerState smooth : register( s0 );\n"
-        "SamplerState blocky : register( s1 );\n"
-        "SamplerState mirror : register( s2 );\n"
-        "\n"
-        "cbuffer CBOneFrame : register( b0 )\n"
-        "{\n"
-        "    float2     resolution;     // viewport resolution (in pixels)\n"
-        "    float      time;           // shader playback time (in seconds)\n"
-        "    float      aspect;         // cached aspect of viewport\n"
-        "    float4     mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click\n"
-        "    float4     date;           // (year, month, day, time in seconds)\n"
-        "};\n"
-        "\n"
-        ;
-
-    std::string pixelShaderHeader = pixelShaderHeaderSS.str();
     const size_t nCommonShaderNewLines = std::count(pixelShaderHeader.begin(), pixelShaderHeader.end(), '\n');
 
     // add together
-    std::string psText = pixelShaderHeader + pixelShaderText.str();
+    std::string psText = pixelShaderHeader + toyShaderText.str();
 
     // output complete shader file
     if (gNeesToOutputCompleteHlsl)
     {
-        std::ofstream completeShaderFile((toyFullPath+".hlsl").c_str());
-        if (completeShaderFile)
+        std::ofstream of((toyFullPath+".hlsl").c_str());
+        if (of)
         {
-            completeShaderFile << psText;
+            of << psText;
         }
     }
 
@@ -203,7 +223,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
             size_t length = posComma - posCarriageReturn - 1;
             std::string lineStr = errorMsg.substr(posCarriageReturn+1, length);
             int lineNo; 
-            std::istringstream( lineStr ) >> lineNo;
+            std::istringstream(lineStr) >> lineNo;
             lineNo -= nCommonShaderNewLines;
             std::ostringstream ss;
             ss << lineNo;
@@ -215,7 +235,6 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
             posCarriageReturn ++;
         }
 
-        //::Beep( rand()%200+700, 300 );
         gFailsToCompileShader = true;
         OutputDebugStringA(errorMsg.c_str());
         ::MessageBox(gHWnd, errorMsg.c_str(), kErrorBoxName, MB_OK);
@@ -224,8 +243,8 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     }
 
     gFailsToCompileShader = false;
-    gPixelShader = NULL;
     V_RETURN(gDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &gPixelShader ));
+    gContext->PSSetShader( gPixelShader, NULL, 0 );
 
     std::stringstream titleSS;
     titleSS << toyFullPath << " - " << kAppName;
@@ -246,14 +265,19 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     }
 #endif
 
-    for (size_t i=0;i<gTextureSRVs.size();i++)
+    for (size_t i=0; i<gTextureSRVs.size(); i++)
     {
         SAFE_RELEASE(gTextureSRVs[i]);
     }
 
     gTextureSRVs.resize(texturePaths.size());
-    for (size_t i=0;i<texturePaths.size();i++)
+    for (size_t i=0; i<texturePaths.size(); i++)
     {
+        if (gIsCameraDevice && i == 0)
+        {
+            V_RETURN(updateTextureFromCamera(i, kDeviceId));
+            continue;
+        }
         V_RETURN(D3DX11CreateShaderResourceViewFromFile( gDevice, texturePaths[i].c_str(), NULL, NULL, &gTextureSRVs[i], NULL ));
     }
 

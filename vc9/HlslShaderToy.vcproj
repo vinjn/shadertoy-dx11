@@ -501,6 +501,18 @@
 				>
 			</File>
 		</Filter>
+		<Filter
+			Name="videoInput"
+			>
+			<File
+				RelativePath="..\src\videoInput\videoInput.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\src\videoInput\videoInput.h"
+				>
+			</File>
+		</Filter>
 		<File
 			RelativePath="..\src\Toy.cpp"
 			>

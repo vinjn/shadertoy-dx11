@@ -24,8 +24,6 @@ struct CBOneFrame
 //--------------------------------------------------------------------------------------
 HINSTANCE                               gHInst;
 HWND                                    gHWnd;
-D3D_DRIVER_TYPE                         gDriverType;
-D3D_FEATURE_LEVEL                       gFeatureLevel;
 CComPtr<ID3D11Device>                   gDevice;
 CComPtr<ID3D11DeviceContext>            gContext;
 CComPtr<IDXGISwapChain>                 gSwapChain;
@@ -56,6 +54,9 @@ std::string                             gToyFileName;
 FILETIME                                gLastModifyTime;
 bool                                    gFailsToCompileShader = false;
 bool                                    gNeesToOutputCompleteHlsl = false;
+
+bool                                    gIsCameraDevice = false;
+videoInput                              gVideoInput;
 
 const std::string kVertexShaderCode =
 "float4 VS(uint id : SV_VertexID) : SV_POSITION\n"
@@ -167,7 +168,7 @@ HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow )
 //--------------------------------------------------------------------------------------
 // Create Direct3D device and swap chain
 //--------------------------------------------------------------------------------------
-HRESULT SetupDevice( const std::string& filename )
+HRESULT SetupDevice( const std::string& toyFullPath )
 {
     RECT rc;
     ::GetClientRect( gHWnd, &rc );
@@ -217,13 +218,14 @@ HRESULT SetupDevice( const std::string& filename )
 
     for( UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++ )
     {
-        gDriverType = driverTypes[driverTypeIndex];
-        hr = D3D11CreateDeviceAndSwapChain( NULL, gDriverType, NULL, createDeviceFlags, featureLevels, numFeatureLevels,
-            D3D11_SDK_VERSION, &sd, &gSwapChain, &gDevice, &gFeatureLevel, &gContext );
-        if( SUCCEEDED( hr ) )
+        D3D_FEATURE_LEVEL   featureLevel;
+        D3D_DRIVER_TYPE     driverType = driverTypes[driverTypeIndex];
+        hr = D3D11CreateDeviceAndSwapChain( NULL, driverType, NULL, createDeviceFlags, featureLevels, numFeatureLevels,
+            D3D11_SDK_VERSION, &sd, &gSwapChain, &gDevice, &featureLevel, &gContext );
+        if (SUCCEEDED(hr))
             break;
     }
-    if( FAILED( hr ) )
+    if (FAILED(hr))
         return hr;
 
     V_RETURN(gSwapChain->GetBuffer( 0, __uuidof( ID3D11Texture2D ), ( LPVOID* )&gBackbuffer ));
@@ -234,7 +236,7 @@ HRESULT SetupDevice( const std::string& filename )
         1, 1, D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET);
 
     // create ping-pong RTV & SRV
-    for (int i=0;i<2;i++)
+    for (int i=0; i<2; i++)
     {
         V_RETURN(gDevice->CreateTexture2D( &texDesc, NULL, &PingPong::TEXs[i] ));
         V_RETURN(gDevice->CreateRenderTargetView( PingPong::TEXs[i], NULL, &PingPong::RTVs[i] ));
@@ -247,6 +249,7 @@ HRESULT SetupDevice( const std::string& filename )
         ID3DBlob* pVSBlob = NULL;
         V_RETURN(compileShaderFromMemory( kVertexShaderCode.c_str(), "VS", "vs_4_0", &pVSBlob ));
         V_RETURN(gDevice->CreateVertexShader( pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), NULL, &gVertexShader ));
+        gContext->VSSetShader( gVertexShader, NULL, 0 );
     }
 
     {
@@ -254,7 +257,7 @@ HRESULT SetupDevice( const std::string& filename )
         V_RETURN(gDevice->CreateBuffer( &desc, NULL, &gCBOneFrame ));
     }
 
-    V(createShaderAndTexturesFromFile(filename));
+    V(createShaderAndTexturesFromFile(toyFullPath));
 
     CD3D11_SAMPLER_DESC sampDesc(D3D11_DEFAULT);
     sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -267,6 +270,10 @@ HRESULT SetupDevice( const std::string& filename )
     sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
     V_RETURN(gDevice->CreateSamplerState( &sampDesc, &gSamplerMirror ));
 
+    // pipeline stats that remain constant
+    gContext->RSSetViewports( 1, &g_viewport );
+    gContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+
     return S_OK;
 }
 
@@ -276,9 +283,9 @@ HRESULT SetupDevice( const std::string& filename )
 //--------------------------------------------------------------------------------------
 void DestroyDevice()
 {
-    if( gContext ) gContext->ClearState();
+    if (gContext) gContext->ClearState();
 
-    for (size_t i=0;i<gTextureSRVs.size();i++)
+    for (size_t i=0; i<gTextureSRVs.size(); i++)
     {
         SAFE_RELEASE(gTextureSRVs[i]);
     }
@@ -287,7 +294,7 @@ void DestroyDevice()
 
 void DestroyWindow()
 {
-    if( gHWnd )
+    if (gHWnd)
         ::DestroyWindow( gHWnd );
     UnregisterClass(kAppName, gHInst);
 }
@@ -380,7 +387,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
     if (isShaderModified)
     {
         createShaderAndTexturesFromFile(newToyFileName);
-        for (int i=0;i<2;i++)
+        for (int i=0; i<2; i++)
         {
             gContext->ClearRenderTargetView( PingPong::RTVs[i], kBlackColor );
         }
@@ -398,37 +405,108 @@ void Render()
     static DWORD dwTimeStart = GetTickCount();
     gCbOneFrame.time = ( GetTickCount() - dwTimeStart ) / 1000.0f;
 
+    if (gIsCameraDevice && gVideoInput.isFrameNew(kDeviceId))
+    {
+        V(updateTextureFromCamera(0, kDeviceId));
+    }
+
     gContext->ClearRenderTargetView( PingPong::RTVs[PingPong::frontBufferIdx], kBlackColor );
 
     ID3D11RenderTargetView* pRTVs[] = {PingPong::RTVs[PingPong::frontBufferIdx]};
-    gContext->OMSetRenderTargets( 1, pRTVs, NULL );
-    gContext->RSSetViewports( 1, &g_viewport );
+    gContext->OMSetRenderTargets( _countof(pRTVs), pRTVs, NULL );
 
     gContext->UpdateSubresource( gCBOneFrame, 0, NULL, &gCbOneFrame, 0, 0 );
 
-    gContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-
-    gContext->VSSetShader( gVertexShader, NULL, 0 );
-
-    gContext->PSSetShader( gPixelShader, NULL, 0 );
     ID3D11Buffer* pCBuffers[] = {gCBOneFrame};
-    gContext->PSSetConstantBuffers( 0, 1, pCBuffers );
+    gContext->PSSetConstantBuffers( 0, _countof(pCBuffers), pCBuffers );
 
     if (!gTextureSRVs.empty())
         gContext->PSSetShaderResources( 0, gTextureSRVs.size(), &gTextureSRVs[0] );
     ID3D11ShaderResourceView* pSRVs[] = {PingPong::SRVs[PingPong::backBufferIdx]};
-    gContext->PSSetShaderResources( 1, 1, pSRVs );
+    gContext->PSSetShaderResources( 1, _countof(pSRVs), pSRVs );
 
     ID3D11SamplerState* pSamplers[] = {gSamplerSmooth, gSamplerBlocky, gSamplerMirror};
     gContext->PSSetSamplers( 0, _countof(pSamplers), pSamplers );
 
     gContext->Draw( 3, 0 );
 
+    ID3D11ShaderResourceView* pZeroSRVs[8] = {NULL};
+    gContext->PSSetShaderResources( 1, _countof(pZeroSRVs), pZeroSRVs );
+
     gContext->CopyResource(gBackbuffer, PingPong::TEXs[PingPong::frontBufferIdx]);
 
     gSwapChain->Present( 0, 0 );
 
     std::swap(PingPong::frontBufferIdx, PingPong::backBufferIdx);
+}
 
-    gContext->ClearState();
+HRESULT updateTextureFromCamera( int textureIdx, int deviceId )
+{
+    hr = S_OK;
+
+    bool isCreateTexture = false;
+    if (gTextureSRVs[textureIdx] == NULL)
+    {
+       isCreateTexture = true;
+    }
+
+    if (isCreateTexture)
+    {
+        while (!gVideoInput.isFrameNew(kDeviceId))
+        {
+            ::Sleep(30);
+        }
+    }
+
+    int srcWidth = gVideoInput.getWidth(deviceId);
+    int srcHeight = gVideoInput.getHeight(deviceId);
+    BYTE* srcPixels = gVideoInput.getPixels(kDeviceId, true, true);
+
+    // texture size is smaller than camera frame size in order to fix the black border issue
+    int dstWidth = srcWidth - 1;
+    int dstHeight = srcHeight - 1;
+
+    CComPtr<ID3D11Texture2D> tex;
+
+    if (isCreateTexture)
+    {
+        CD3D11_TEXTURE2D_DESC desc(DXGI_FORMAT_R8G8B8A8_UNORM, dstWidth, dstHeight);
+        desc.MipLevels = 1;
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        V_RETURN(gDevice->CreateTexture2D( &desc, NULL, &tex ));
+        V_RETURN(gDevice->CreateShaderResourceView(tex, NULL, &gTextureSRVs[textureIdx]));
+    }
+    else
+    {
+        gTextureSRVs[textureIdx]->GetResource(reinterpret_cast<ID3D11Resource**>(&tex)); 
+    }
+
+    struct ColorRGB
+    {
+        BYTE r,g,b;
+    };
+
+    struct ColorRGBA
+    {
+        ColorRGB rgb;
+        BYTE a;
+    };
+
+    D3D11_MAPPED_SUBRESOURCE mappedRes;
+    V_RETURN(gContext->Map(tex, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedRes));
+    ColorRGB* src = reinterpret_cast<ColorRGB*>(srcPixels);
+    ColorRGBA* dest = reinterpret_cast<ColorRGBA*>(mappedRes.pData);
+    UINT pitch = mappedRes.RowPitch / sizeof(ColorRGBA);
+    for (int y = 0; y < dstHeight; y++)
+    {
+        for (int x = 0; x < dstWidth; x++)
+        {
+            dest[y * pitch + x].rgb = src[y * srcWidth + srcWidth - x];
+            dest[y * pitch + x].a = 255;
+        }
+    }
+    gContext->Unmap(tex, 0);
+
+    return hr;
 }

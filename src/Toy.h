@@ -7,6 +7,7 @@
 #include <iostream>
 #include <algorithm>
 #include "V.h"
+#include "videoInput/videoInput.h"
 
 const char kAppName[] = "HlslShaderToy";
 const char kErrorBoxName[] = "Shader Compiling Error";
@@ -28,6 +29,10 @@ extern FILETIME                                 gLastModifyTime;
 extern bool                                     gFailsToCompileShader;
 extern bool                                     gNeesToOutputCompleteHlsl;
 
+const int kDeviceId = 0; // TODO: support custom id
+extern bool                                     gIsCameraDevice;    // must be used as textures[0]
+extern videoInput                               gVideoInput;
+
 //--------------------------------------------------------------------------------------
 // Forward declarations
 //--------------------------------------------------------------------------------------
@@ -39,3 +44,4 @@ LRESULT CALLBACK    WndProc( HWND, UINT, WPARAM, LPARAM );
 void Render();
 
 HRESULT createShaderAndTexturesFromFile(const std::string& filename);
+HRESULT updateTextureFromCamera(int textureIdx, int deviceId);
