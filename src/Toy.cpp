@@ -17,45 +17,45 @@ struct CBOneFrame
     float       aspect;         // cached aspect of viewport
     XMFLOAT4    mouse;          // mouse pixel coords. xy: current (if MLB down), zw: click
     XMFLOAT4    date;           // (year, month, day, time in seconds)
-}g_cbOneFrame;
+}gCbOneFrame;
 
 //--------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------
-HINSTANCE                               g_hInst;
-HWND                                    g_hWnd;
-D3D_DRIVER_TYPE                         g_driverType;
-D3D_FEATURE_LEVEL                       g_featureLevel;
-CComPtr<ID3D11Device>                   g_pd3dDevice;
-CComPtr<ID3D11DeviceContext>            g_pContext;
-CComPtr<IDXGISwapChain>                 g_pSwapChain;
+HINSTANCE                               gHInst;
+HWND                                    gHWnd;
+D3D_DRIVER_TYPE                         gDriverType;
+D3D_FEATURE_LEVEL                       gFeatureLevel;
+CComPtr<ID3D11Device>                   gDevice;
+CComPtr<ID3D11DeviceContext>            gContext;
+CComPtr<IDXGISwapChain>                 gSwapChain;
 
 namespace PingPong
 {
-    CComPtr<ID3D11Texture2D>                Texs[2];
+    CComPtr<ID3D11Texture2D>                TEXs[2];
     CComPtr<ID3D11ShaderResourceView>       SRVs[2];
     CComPtr<ID3D11RenderTargetView>         RTVs[2];
+    int frontBufferIdx  = 0;
+    int backBufferIdx   = 1;
 }
-int frontBufferIdx = 0;
-int backBufferIdx = 1;
 
-CComPtr<ID3D11RenderTargetView>         g_pRenderTargetView;
-CComPtr<ID3D11Texture2D>                g_pBackbuffer;;
 
-CComPtr<ID3D11VertexShader>             g_pVertexShader;
-CComPtr<ID3D11PixelShader>              g_pPixelShader;
-CComPtr<ID3D11Buffer>                   g_pCBOneFrame;      // cbuffer CBOneFrame;
-std::vector<ID3D11ShaderResourceView*>  g_pTextureSRVs;      // Texture2D textures[];
-CComPtr<ID3D11SamplerState>             g_pSamplerSmooth;
-CComPtr<ID3D11SamplerState>             g_pSamplerBlocky;
-CComPtr<ID3D11SamplerState>             g_pSamplerMirror;
+CComPtr<ID3D11RenderTargetView>         gRenderTargetView;
+CComPtr<ID3D11Texture2D>                gBackbuffer;;
 
-// Setup the viewport
+CComPtr<ID3D11VertexShader>             gVertexShader;
+CComPtr<ID3D11PixelShader>              gPixelShader;
+CComPtr<ID3D11Buffer>                   gCBOneFrame;      // cbuffer CBOneFrame;
+std::vector<ID3D11ShaderResourceView*>  gTextureSRVs;      // Texture2D textures[];
+CComPtr<ID3D11SamplerState>             gSamplerSmooth;
+CComPtr<ID3D11SamplerState>             gSamplerBlocky;
+CComPtr<ID3D11SamplerState>             gSamplerMirror;
+
 D3D11_VIEWPORT g_viewport;
-std::string                             g_toyFileName;
-FILETIME                                g_lastModifyTime;
-bool                                    g_failToCompileShader = false;
-bool                                    g_generateHlsl = false;
+std::string                             gToyFileName;
+FILETIME                                gLastModifyTime;
+bool                                    gFailsToCompileShader = false;
+bool                                    gNeesToOutputCompleteHlsl = false;
 
 const std::string kVertexShaderCode =
 "float4 VS(uint id : SV_VertexID) : SV_POSITION\n"
@@ -80,7 +80,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     {
         vector<string> extensions;
         extensions.push_back("toy");
-        toyFileName = getOpenFilePath(g_hWnd, getAppPath(), extensions);
+        toyFileName = getOpenFilePath(gHWnd, getAppPath(), extensions);
     }
     else
     {
@@ -98,7 +98,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     if( FAILED( SetupWindow( hInstance, nCmdShow ) ) )
         return 0;
 
-    ::SetTimer(g_hWnd, 0, kFileChangeDetectionMS, NULL);
+    ::SetTimer(gHWnd, 0, kFileChangeDetectionMS, NULL);
 
     if( FAILED( SetupDevice(toyFileName) ) )
     {
@@ -145,21 +145,21 @@ HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow )
         return E_FAIL;
 
     // Create window
-    g_hInst = hInstance;
+    gHInst = hInstance;
     RECT rc = { 0, 0, kAppWidth, kAppHeight};
     ::AdjustWindowRect( &rc, WS_OVERLAPPEDWINDOW, FALSE );
-    g_hWnd = CreateWindow( kAppName, kAppName, 
+    gHWnd = CreateWindow( kAppName, kAppName, 
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 
         rc.right - rc.left, rc.bottom - rc.top, 
         NULL, NULL, hInstance,
         NULL );
-    if( !g_hWnd )
+    if( !gHWnd )
         return E_FAIL;
 
-    ::ShowWindow( g_hWnd, nCmdShow );
+    ::ShowWindow( gHWnd, nCmdShow );
 
-    ::DragAcceptFiles( g_hWnd, TRUE );
+    ::DragAcceptFiles( gHWnd, TRUE );
 
     return S_OK;
 }
@@ -170,15 +170,15 @@ HRESULT SetupWindow( HINSTANCE hInstance, int nCmdShow )
 HRESULT SetupDevice( const std::string& filename )
 {
     RECT rc;
-    ::GetClientRect( g_hWnd, &rc );
+    ::GetClientRect( gHWnd, &rc );
     UINT width = rc.right - rc.left;
     UINT height = rc.bottom - rc.top;
 
     g_viewport = CD3D11_VIEWPORT(0.0f, 0.0f, (float)width, (float)height);
 
-    g_cbOneFrame.resolution.x = (float)width;
-    g_cbOneFrame.resolution.y = (float)height;
-    g_cbOneFrame.aspect = (float)width / (float)height;
+    gCbOneFrame.resolution.x = (float)width;
+    gCbOneFrame.resolution.y = (float)height;
+    gCbOneFrame.aspect = (float)width / (float)height;
 
     UINT createDeviceFlags = 0;
 #ifdef _DEBUG
@@ -210,24 +210,24 @@ HRESULT SetupDevice( const std::string& filename )
     sd.BufferDesc.RefreshRate.Numerator = 60;
     sd.BufferDesc.RefreshRate.Denominator = 1;
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = g_hWnd;
+    sd.OutputWindow = gHWnd;
     sd.SampleDesc.Count = 1;
     sd.SampleDesc.Quality = 0;
     sd.Windowed = TRUE;
 
     for( UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++ )
     {
-        g_driverType = driverTypes[driverTypeIndex];
-        hr = D3D11CreateDeviceAndSwapChain( NULL, g_driverType, NULL, createDeviceFlags, featureLevels, numFeatureLevels,
-            D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &g_featureLevel, &g_pContext );
+        gDriverType = driverTypes[driverTypeIndex];
+        hr = D3D11CreateDeviceAndSwapChain( NULL, gDriverType, NULL, createDeviceFlags, featureLevels, numFeatureLevels,
+            D3D11_SDK_VERSION, &sd, &gSwapChain, &gDevice, &gFeatureLevel, &gContext );
         if( SUCCEEDED( hr ) )
             break;
     }
     if( FAILED( hr ) )
         return hr;
 
-    V_RETURN(g_pSwapChain->GetBuffer( 0, __uuidof( ID3D11Texture2D ), ( LPVOID* )&g_pBackbuffer ));
-    V_RETURN(g_pd3dDevice->CreateRenderTargetView( g_pBackbuffer , NULL, &g_pRenderTargetView ));
+    V_RETURN(gSwapChain->GetBuffer( 0, __uuidof( ID3D11Texture2D ), ( LPVOID* )&gBackbuffer ));
+    V_RETURN(gDevice->CreateRenderTargetView( gBackbuffer , NULL, &gRenderTargetView ));
 
     CD3D11_TEXTURE2D_DESC texDesc(sd.BufferDesc.Format, 
         sd.BufferDesc.Width, sd.BufferDesc.Height,
@@ -236,36 +236,36 @@ HRESULT SetupDevice( const std::string& filename )
     // create ping-pong RTV & SRV
     for (int i=0;i<2;i++)
     {
-        V_RETURN(g_pd3dDevice->CreateTexture2D( &texDesc, NULL, &PingPong::Texs[i] ));
-        V_RETURN(g_pd3dDevice->CreateRenderTargetView( PingPong::Texs[i], NULL, &PingPong::RTVs[i] ));
-        ((ID3D11Texture2D*)PingPong::Texs[i])->Release();
-        V_RETURN(g_pd3dDevice->CreateShaderResourceView( PingPong::Texs[i], NULL, &PingPong::SRVs[i] ));
-        ((ID3D11Texture2D*)PingPong::Texs[i])->Release();
+        V_RETURN(gDevice->CreateTexture2D( &texDesc, NULL, &PingPong::TEXs[i] ));
+        V_RETURN(gDevice->CreateRenderTargetView( PingPong::TEXs[i], NULL, &PingPong::RTVs[i] ));
+        ((ID3D11Texture2D*)PingPong::TEXs[i])->Release();
+        V_RETURN(gDevice->CreateShaderResourceView( PingPong::TEXs[i], NULL, &PingPong::SRVs[i] ));
+        ((ID3D11Texture2D*)PingPong::TEXs[i])->Release();
     }
 
     {
         ID3DBlob* pVSBlob = NULL;
         V_RETURN(compileShaderFromMemory( kVertexShaderCode.c_str(), "VS", "vs_4_0", &pVSBlob ));
-        V_RETURN(g_pd3dDevice->CreateVertexShader( pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), NULL, &g_pVertexShader ));
+        V_RETURN(gDevice->CreateVertexShader( pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), NULL, &gVertexShader ));
     }
 
     {
         CD3D11_BUFFER_DESC desc(sizeof(CBOneFrame), D3D11_BIND_CONSTANT_BUFFER);
-        V_RETURN(g_pd3dDevice->CreateBuffer( &desc, NULL, &g_pCBOneFrame ));
+        V_RETURN(gDevice->CreateBuffer( &desc, NULL, &gCBOneFrame ));
     }
 
     V(createShaderAndTexturesFromFile(filename));
 
     CD3D11_SAMPLER_DESC sampDesc(D3D11_DEFAULT);
     sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    V_RETURN(g_pd3dDevice->CreateSamplerState( &sampDesc, &g_pSamplerSmooth ));
+    V_RETURN(gDevice->CreateSamplerState( &sampDesc, &gSamplerSmooth ));
 
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-    V_RETURN(g_pd3dDevice->CreateSamplerState( &sampDesc, &g_pSamplerBlocky ));
+    V_RETURN(gDevice->CreateSamplerState( &sampDesc, &gSamplerBlocky ));
 
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
-    V_RETURN(g_pd3dDevice->CreateSamplerState( &sampDesc, &g_pSamplerMirror ));
+    V_RETURN(gDevice->CreateSamplerState( &sampDesc, &gSamplerMirror ));
 
     return S_OK;
 }
@@ -276,20 +276,20 @@ HRESULT SetupDevice( const std::string& filename )
 //--------------------------------------------------------------------------------------
 void DestroyDevice()
 {
-    if( g_pContext ) g_pContext->ClearState();
+    if( gContext ) gContext->ClearState();
 
-    for (size_t i=0;i<g_pTextureSRVs.size();i++)
+    for (size_t i=0;i<gTextureSRVs.size();i++)
     {
-        SAFE_RELEASE(g_pTextureSRVs[i]);
+        SAFE_RELEASE(gTextureSRVs[i]);
     }
 }
 
 
 void DestroyWindow()
 {
-    if( g_hWnd )
-        ::DestroyWindow( g_hWnd );
-    UnregisterClass(kAppName, g_hInst);
+    if( gHWnd )
+        ::DestroyWindow( gHWnd );
+    UnregisterClass(kAppName, gHInst);
 }
 
 
@@ -305,17 +305,17 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
     int mouseY = GET_Y_LPARAM(lParam);
 
     bool isShaderModified = false;
-    std::string newToyFileName = g_toyFileName;
+    std::string newToyFileName = gToyFileName;
 
     switch( message )
     {
     case WM_TIMER:
         {
-            FILETIME ftime = getFileModifyTime(g_toyFileName);
-            if (ftime.dwLowDateTime != g_lastModifyTime.dwLowDateTime || ftime.dwHighDateTime != g_lastModifyTime.dwHighDateTime)
+            FILETIME ftime = getFileModifyTime(gToyFileName);
+            if (ftime.dwLowDateTime != gLastModifyTime.dwLowDateTime || ftime.dwHighDateTime != gLastModifyTime.dwHighDateTime)
             {
-                ftime = g_lastModifyTime;
-                if (g_failToCompileShader)
+                ftime = gLastModifyTime;
+                if (gFailsToCompileShader)
                 {
                     // HACK: close the previous MessageBox
                     if (HWND hBox = ::FindWindow(NULL, kErrorBoxName))
@@ -345,7 +345,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 
             if (!isShaderModified)
             {
-                ::MessageBox(g_hWnd, "Please drag a shader file (.toy).", kAppName, MB_OK);
+                ::MessageBox(gHWnd, "Please drag a shader file (.toy).", kAppName, MB_OK);
             }
 
             ::DragFinish( dropH );
@@ -367,8 +367,8 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         }break;
     case WM_MOUSEMOVE:
         {
-            g_cbOneFrame.mouse.x = (float)mouseX;
-            g_cbOneFrame.mouse.y = (float)mouseY;
+            gCbOneFrame.mouse.x = (float)mouseX;
+            gCbOneFrame.mouse.y = (float)mouseY;
         }break;
     case WM_DESTROY:
         PostQuitMessage( 0 );
@@ -382,7 +382,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         createShaderAndTexturesFromFile(newToyFileName);
         for (int i=0;i<2;i++)
         {
-            g_pContext->ClearRenderTargetView( PingPong::RTVs[i], kBlackColor );
+            gContext->ClearRenderTargetView( PingPong::RTVs[i], kBlackColor );
         }
     }
 
@@ -396,39 +396,39 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 void Render()
 {
     static DWORD dwTimeStart = GetTickCount();
-    g_cbOneFrame.time = ( GetTickCount() - dwTimeStart ) / 1000.0f;
+    gCbOneFrame.time = ( GetTickCount() - dwTimeStart ) / 1000.0f;
 
-    g_pContext->ClearRenderTargetView( PingPong::RTVs[frontBufferIdx], kBlackColor );
+    gContext->ClearRenderTargetView( PingPong::RTVs[PingPong::frontBufferIdx], kBlackColor );
 
-    ID3D11RenderTargetView* pRTVs[] = {PingPong::RTVs[frontBufferIdx]};
-    g_pContext->OMSetRenderTargets( 1, pRTVs, NULL );
-    g_pContext->RSSetViewports( 1, &g_viewport );
+    ID3D11RenderTargetView* pRTVs[] = {PingPong::RTVs[PingPong::frontBufferIdx]};
+    gContext->OMSetRenderTargets( 1, pRTVs, NULL );
+    gContext->RSSetViewports( 1, &g_viewport );
 
-    g_pContext->UpdateSubresource( g_pCBOneFrame, 0, NULL, &g_cbOneFrame, 0, 0 );
+    gContext->UpdateSubresource( gCBOneFrame, 0, NULL, &gCbOneFrame, 0, 0 );
 
-    g_pContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+    gContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
 
-    g_pContext->VSSetShader( g_pVertexShader, NULL, 0 );
+    gContext->VSSetShader( gVertexShader, NULL, 0 );
 
-    g_pContext->PSSetShader( g_pPixelShader, NULL, 0 );
-    ID3D11Buffer* pCBuffers[] = {g_pCBOneFrame};
-    g_pContext->PSSetConstantBuffers( 0, 1, pCBuffers );
+    gContext->PSSetShader( gPixelShader, NULL, 0 );
+    ID3D11Buffer* pCBuffers[] = {gCBOneFrame};
+    gContext->PSSetConstantBuffers( 0, 1, pCBuffers );
 
-    if (!g_pTextureSRVs.empty())
-        g_pContext->PSSetShaderResources( 0, g_pTextureSRVs.size(), &g_pTextureSRVs[0] );
-    ID3D11ShaderResourceView* pSRVs[] = {PingPong::SRVs[backBufferIdx]};
-    g_pContext->PSSetShaderResources( 1, 1, pSRVs );
+    if (!gTextureSRVs.empty())
+        gContext->PSSetShaderResources( 0, gTextureSRVs.size(), &gTextureSRVs[0] );
+    ID3D11ShaderResourceView* pSRVs[] = {PingPong::SRVs[PingPong::backBufferIdx]};
+    gContext->PSSetShaderResources( 1, 1, pSRVs );
 
-    ID3D11SamplerState* pSamplers[] = {g_pSamplerSmooth, g_pSamplerBlocky};
-    g_pContext->PSSetSamplers( 0, 2, pSamplers );
+    ID3D11SamplerState* pSamplers[] = {gSamplerSmooth, gSamplerBlocky, gSamplerMirror};
+    gContext->PSSetSamplers( 0, _countof(pSamplers), pSamplers );
 
-    g_pContext->Draw( 3, 0 );
+    gContext->Draw( 3, 0 );
 
-    g_pContext->CopyResource(g_pBackbuffer, PingPong::Texs[frontBufferIdx]);
+    gContext->CopyResource(gBackbuffer, PingPong::TEXs[PingPong::frontBufferIdx]);
 
-    g_pSwapChain->Present( 0, 0 );
+    gSwapChain->Present( 0, 0 );
 
-    std::swap(frontBufferIdx, backBufferIdx);
+    std::swap(PingPong::frontBufferIdx, PingPong::backBufferIdx);
 
-    g_pContext->ClearState();
+    gContext->ClearState();
 }

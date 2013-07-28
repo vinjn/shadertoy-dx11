@@ -17,16 +17,16 @@ const int kAppHeight = 480;
 const int kFileChangeDetectionMS = 1000;
 const float kBlackColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // red, green, blue, alpha
 
-extern CComPtr<ID3D11Device>                    g_pd3dDevice;
-extern CComPtr<ID3D11DeviceContext>             g_pContext;
-extern  HWND g_hWnd;
-extern CComPtr<ID3D11PixelShader>               g_pPixelShader;
-extern std::vector<ID3D11ShaderResourceView*>   g_pTextureSRVs;      // Texture2D textures[];
+extern CComPtr<ID3D11Device>                    gDevice;
+extern CComPtr<ID3D11DeviceContext>             gContext;
+extern  HWND gHWnd;
+extern CComPtr<ID3D11PixelShader>               gPixelShader;
+extern std::vector<ID3D11ShaderResourceView*>   gTextureSRVs;      // Texture2D textures[];
 
-extern std::string                              g_toyFileName;
-extern FILETIME                                 g_lastModifyTime;
-extern bool                                     g_failToCompileShader;
-extern bool                                     g_generateHlsl;
+extern std::string                              gToyFileName;
+extern FILETIME                                 gLastModifyTime;
+extern bool                                     gFailsToCompileShader;
+extern bool                                     gNeesToOutputCompleteHlsl;
 
 //--------------------------------------------------------------------------------------
 // Forward declarations

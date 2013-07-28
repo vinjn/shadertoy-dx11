@@ -55,7 +55,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
         }
         else
         {
-            ::MessageBox(g_hWnd, "Invalid filename.", kAppName, MB_OK);
+            ::MessageBox(gHWnd, "Invalid filename.", kAppName, MB_OK);
         }
     }
 
@@ -90,8 +90,8 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
         return D3D11_ERROR_FILE_NOT_FOUND;
     }
 
-    g_lastModifyTime = getFileModifyTime(toyFullPath);
-    g_toyFileName = toyFullPath;
+    gLastModifyTime = getFileModifyTime(toyFullPath);
+    gToyFileName = toyFullPath;
 
     std::vector<std::string> texturePaths;
     const std::regex reComment("[^/]*//\\s*(.*)");
@@ -175,7 +175,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     std::string psText = pixelShaderHeader + pixelShaderText.str();
 
     // output complete shader file
-    if (g_generateHlsl)
+    if (gNeesToOutputCompleteHlsl)
     {
         std::ofstream completeShaderFile((toyFullPath+".hlsl").c_str());
         if (completeShaderFile)
@@ -216,20 +216,20 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
         }
 
         //::Beep( rand()%200+700, 300 );
-        g_failToCompileShader = true;
+        gFailsToCompileShader = true;
         OutputDebugStringA(errorMsg.c_str());
-        ::MessageBox(g_hWnd, errorMsg.c_str(), kErrorBoxName, MB_OK);
+        ::MessageBox(gHWnd, errorMsg.c_str(), kErrorBoxName, MB_OK);
 
         return E_FAIL;
     }
 
-    g_failToCompileShader = false;
-    g_pPixelShader = NULL;
-    V_RETURN(g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &g_pPixelShader ));
+    gFailsToCompileShader = false;
+    gPixelShader = NULL;
+    V_RETURN(gDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), NULL, &gPixelShader ));
 
     std::stringstream titleSS;
     titleSS << toyFullPath << " - " << kAppName;
-    ::SetWindowText(g_hWnd, titleSS.str().c_str());
+    ::SetWindowText(gHWnd, titleSS.str().c_str());
 
 #ifdef TEST_SHADER_REFLECTION
     // shader reflection
@@ -246,15 +246,15 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
     }
 #endif
 
-    for (size_t i=0;i<g_pTextureSRVs.size();i++)
+    for (size_t i=0;i<gTextureSRVs.size();i++)
     {
-        SAFE_RELEASE(g_pTextureSRVs[i]);
+        SAFE_RELEASE(gTextureSRVs[i]);
     }
 
-    g_pTextureSRVs.resize(texturePaths.size());
+    gTextureSRVs.resize(texturePaths.size());
     for (size_t i=0;i<texturePaths.size();i++)
     {
-        V_RETURN(D3DX11CreateShaderResourceViewFromFile( g_pd3dDevice, texturePaths[i].c_str(), NULL, NULL, &g_pTextureSRVs[i], NULL ));
+        V_RETURN(D3DX11CreateShaderResourceViewFromFile( gDevice, texturePaths[i].c_str(), NULL, NULL, &gTextureSRVs[i], NULL ));
     }
 
     ::Beep( rand()%100+200, 300 );

@@ -220,6 +220,7 @@ std::string getTempFolder()
 
 std::string extractToyFromGithubIssuse( const std::string& localHtmlFile )
 {
+    (localHtmlFile);
     return 
         "// demonstrate the use of url image\n"
         "// https://f.cloud.github.com/assets/558657/590903/5b36a0e0-c9f3-11e2-93f0-743a1469c0d9.png\n"
