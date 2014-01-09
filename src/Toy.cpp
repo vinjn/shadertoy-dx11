@@ -420,10 +420,11 @@ void Render()
     ID3D11Buffer* pCBuffers[] = {gCBOneFrame};
     gContext->PSSetConstantBuffers( 0, _countof(pCBuffers), pCBuffers );
 
-    if (!gTextureSRVs.empty())
-        gContext->PSSetShaderResources( 0, gTextureSRVs.size(), &gTextureSRVs[0] );
     ID3D11ShaderResourceView* pSRVs[] = {PingPong::SRVs[PingPong::backBufferIdx]};
-    gContext->PSSetShaderResources( 1, _countof(pSRVs), pSRVs );
+    gContext->PSSetShaderResources( 0, _countof(pSRVs), pSRVs );
+
+    if (!gTextureSRVs.empty())
+        gContext->PSSetShaderResources( 1, gTextureSRVs.size(), &gTextureSRVs[0] );
 
     ID3D11SamplerState* pSamplers[] = {gSamplerSmooth, gSamplerBlocky, gSamplerMirror};
     gContext->PSSetSamplers( 0, _countof(pSamplers), pSamplers );

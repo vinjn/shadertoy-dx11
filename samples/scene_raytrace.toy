@@ -165,7 +165,7 @@ float4 Shade(float3 i, float3 n, float3 v, int hitobj)
 	// lighting
 	float4 diff = object[hitobj].color * object[hitobj].Kd;
 	if (hitobj==2) {
-		diff *= textures[0].Sample(smooth, i.xz);	// floor texture
+		diff *= textures[1].Sample(smooth, i.xz);	// floor texture
 	}
 	float4 spec = lightColor * object[hitobj].Ks;
 	float shadowFactor = 0.25 + 0.75*!shadowed;	
