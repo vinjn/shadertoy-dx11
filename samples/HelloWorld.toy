@@ -1,7 +1,11 @@
 // demonstrate the use of local image
 // photo_4.jpg
+// ducky.png
  
 float4 main( float4 pos : SV_POSITION) : SV_Target
 {
-    return textures[0].Sample( smooth, pos.xy / resolution );
+    float4 clr0 = textures[0].Sample( smooth, pos.xy / resolution );
+    float4 clr1 = textures[1].Sample( blocky, pos.xy / resolution );
+
+    return lerp(clr0, clr1, mouse.x / resolution.x);
 }
