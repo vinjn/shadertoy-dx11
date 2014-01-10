@@ -115,7 +115,7 @@ std::string getOpenFilePath( HWND hWnd, const std::string &initialPath, std::vec
         char extensionStr[10000];
         size_t offset = 0;
 
-        strcpy( extensionStr, "HlslShaderToy file (.toy)" );
+        strcpy( extensionStr, "shadertoy-dx11 file (.toy)" );
         offset += strlen( extensionStr ) + 1;
         for( vector<string>::const_iterator strIt = extensions.begin(); strIt != extensions.end(); ++strIt ) {
             strcpy( extensionStr + offset, "*." );

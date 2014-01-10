@@ -41,10 +41,10 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 {
     HRESULT hr = S_OK;
 
-    // "e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy" -> "HelloWorld.toy"
+    // "e:\__svn_pool\shadertoy-dx11\media\HelloWorld.toy" -> "HelloWorld.toy"
     std::string toyLeafName = getLeafName(toyFullPath);
 
-    // "e:\__svn_pool\HlslShaderToy\media\HelloWorld.toy" -> "e:\__svn_pool\HlslShaderToy\media\"
+    // "e:\__svn_pool\shadertoy-dx11\media\HelloWorld.toy" -> "e:\__svn_pool\shadertoy-dx11\media\"
     // for url, this value would be ""
     std::string toyFolderName;
     {
@@ -65,7 +65,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 
     if (isUrlPath(toyFullPath))
     {
-        // https://raw.github.com/vinjn/HlslShaderToy/master/samples/HelloWorldUrl.toy -> C:/temp/network_HelloWorldUrl.toy.toy
+        // https://raw.github.com/vinjn/shadertoy-dx11/master/samples/HelloWorldUrl.toy -> C:/temp/network_HelloWorldUrl.toy.toy
         std::string url = toyFullPath;
         std::stringstream ss;
         ss << getTempFolder() << "network_" << toyLeafName << ".toy";
@@ -95,8 +95,8 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
 
     std::vector<std::string> texturePaths;
     const std::regex reResourceLocations("[^/]*//\\s*(.*)");
-    // e:\\__svn_pool\\HlslShaderToy\\media\\ducky.png
-    // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png
+    // e:\\__svn_pool\\shadertoy-dx11\\media\\ducky.png
+    // https://raw.github.com/vinjn/shadertoy-dx11/master/media/ducky.png
 
     gIsCameraDevice = false;
 
@@ -130,7 +130,7 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
             if (isUrlPath(possiblePath) )
             {
                 // change possiblePath
-                // https://raw.github.com/vinjn/HlslShaderToy/master/media/ducky.png -> C:/temp/HelloWorld.toy_ducky.png
+                // https://raw.github.com/vinjn/shadertoy-dx11/master/media/ducky.png -> C:/temp/HelloWorld.toy_ducky.png
                 std::string url = possiblePath;
                 std::string imageLeafName = getLeafName(url);
                 std::stringstream ss;
@@ -166,11 +166,11 @@ HRESULT createShaderAndTexturesFromFile(const std::string& toyFullPath)
         std::stringstream pixelShaderHeaderSS;
         if (!texturePaths.empty())
         {
-            pixelShaderHeaderSS << "Texture2D textures[" << texturePaths.size() <<"] : register( t0 );\n";
+            pixelShaderHeaderSS << "Texture2D textures[" << texturePaths.size() <<"] : register( t1 );\n";
         }
 
         pixelShaderHeaderSS <<        
-            "Texture2D backbuffer : register( t1 );\n"
+            "Texture2D backbuffer : register( t0 );\n"
             "\n"
             "SamplerState smooth : register( s0 );\n"
             "SamplerState blocky : register( s1 );\n"

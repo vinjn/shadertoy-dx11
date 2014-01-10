@@ -380,8 +380,6 @@ void videoDevice::NukeDownstream(IBaseFilter *pBF){
 
 void videoDevice::destroyGraph(){
 	HRESULT hr = NULL;
- 	int FuncRetval=0;
- 	int NumFilters=0;
 
 	int i = 0;
 	while (hr == NOERROR)	
@@ -1158,7 +1156,6 @@ bool videoInput::getVideoSettingFilter(int deviceID, long Property, long &min, l
 	if( !isDeviceSetup(deviceID) )return false;
 
 	HRESULT hr;	
-	bool isSuccessful = false;
 	
 	videoDevice * VD = VDList[deviceID];
 	
@@ -1234,7 +1231,6 @@ bool videoInput::setVideoSettingFilter(int deviceID, long Property, long lValue,
 	if( !isDeviceSetup(deviceID) )return false;
 
 	HRESULT hr;	
-	bool isSuccessful = false;
 	
 	videoDevice * VD = VDList[deviceID];
 	
@@ -1357,7 +1353,6 @@ bool videoInput::getVideoSettingCamera(int deviceID, long Property, long &min, l
 	if( !isDeviceSetup(deviceID) )return false;
 
 	HRESULT hr;	
-	bool isSuccessful = false;
 	
 	videoDevice * VD = VDList[deviceID];
 	
@@ -1605,9 +1600,6 @@ void videoInput::processPixels(unsigned char * src, unsigned char * dst, int wid
 	
 	if(!bRGB){
 		
-		int x = 0;
-		int y = 0;
-	
 		if(bFlip){
 			for(int y = 0; y < height; y++){
 				memcpy(dst + (y * widthInBytes), src + ( (height -y -1) * widthInBytes), widthInBytes);	
@@ -1803,8 +1795,6 @@ static bool setSizeAndSubtype(videoDevice * VD, int attemptWidth, int attemptHei
 	VIDEOINFOHEADER *pVih =  reinterpret_cast<VIDEOINFOHEADER*>(VD->pAmMediaType->pbFormat);
 
 	//store current size
-	int tmpWidth  = HEADER(pVih)->biWidth;
-	int tmpHeight = HEADER(pVih)->biHeight;	
 	AM_MEDIA_TYPE * tmpType = NULL;
 	
 	HRESULT	hr = VD->streamConf->GetFormat(&tmpType);

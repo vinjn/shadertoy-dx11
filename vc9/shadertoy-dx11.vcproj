@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="HlslShaderToy"
+	Name="shadertoy-dx11"
 	ProjectGUID="{D29C6982-A589-4081-89B1-91E78D7C41E2}"
-	RootNamespace="HlslShaderToy"
+	RootNamespace="shadertoy-dx11"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="131072"
 	>
@@ -489,7 +489,7 @@
 			Name="resource"
 			>
 			<File
-				RelativePath="..\src\HlslShaderToy.rc"
+				RelativePath="..\src\shadertoy-dx11.rc"
 				>
 			</File>
 			<File

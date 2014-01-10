@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by HlslShaderToy.rc
+// Used by shadertoy-dx11.rc
 //
 #define IDI_ICON                       101
 

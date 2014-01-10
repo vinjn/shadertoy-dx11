@@ -9,7 +9,7 @@
 #include "V.h"
 #include "videoInput/videoInput.h"
 
-const char kAppName[] = "HlslShaderToy";
+const char kAppName[] = "shadertoy-dx11";
 const char kErrorBoxName[] = "Shader Compiling Error";
 // 640 X 480 is preferred by my notebook
 // TODO: make it an option
