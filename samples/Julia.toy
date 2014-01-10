@@ -1,9 +1,9 @@
-// https://www.shadertoy.com/view/Mss3R8
+// https ://www.shadertoy.com/view/Mss3R8
 // Created by inigo quilez - iq/2013
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
 
 
-// learn more here: // http://www.iquilezles.org/www/articles/distancefractals/distancefractals.htm	
+// learn more here: // http ://www.iquilezles.org/www/articles/distancefractals/distancefractals.htm	
 
 float calc( float2 p, float time )
 {
