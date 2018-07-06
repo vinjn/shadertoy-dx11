@@ -1,7 +1,8 @@
 shadertoy-dx11
 ==
 
-##Introduction
+Introduction
+--
 shadertoy-dx11 is inspired by www.shadertoy.com
 
 ShaderToy is such an amazing website, I enjoy learning from the fabulous shaders.   
@@ -9,7 +10,8 @@ In daily work, I care more about Hlsl, which is the shader language for Microsof
 So it would be nice for me to have a standalone Hlsl version of ShaderToy.
 Certainly it won't run in a browser since there is no WebD3D :)
 
-##Basic
+Basic
+--
 The usage is quite straightforward:
 ```
 ./bin/shadertoy-dx11.exe ./samples/HelloWorld.toy
@@ -53,7 +55,8 @@ cbuffer CBOneFrame : register( b0 )
 };
 ```
 
-##Advanced
+Advanced
+--
 shadertoy-dx11 turns various input source into texture:
 * relative image path, as `// photo_4.jpg`.
 * absolute image path, as `// C:/photo_4.jpg`.
